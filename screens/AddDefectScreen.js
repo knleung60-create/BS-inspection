@@ -249,6 +249,9 @@ export default function AddDefectScreen({ navigation }) {
       );
     } catch (error) {
       console.error('Error saving defect:', error);
+      // --- 請在這裡添加下面這一行 ---
+      console.error('DETAILED DATABASE ERROR:', JSON.stringify(error, null, 2));
+      // --- 結束添加 ---
       console.error('Error message:', error.message);
       console.error('Error stack:', error.stack);
       
