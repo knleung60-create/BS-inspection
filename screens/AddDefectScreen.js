@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Image, Alert, Modal, ActivityIndicator } from 'react-native';
 import { Button, TextInput, Card, Title, Menu, Divider, Text } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { SERVICE_TYPES, DEFECT_CATEGORIES, SERVICE_TYPE_NAMES } from '../constants/defectData';
 import { addDefect, generateDefectId, getAllProjects } from '../database/db';
