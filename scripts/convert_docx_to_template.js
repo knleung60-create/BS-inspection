@@ -48,8 +48,13 @@ const path = require('path');
       console.log('Extracted table structure from defects template');
     }
 
-    // Wrap table in a div for styling
-    const wrappedTable = `<div class="section-title">Defects Summary</div>\n${defectsTableHtml}\n<div class="separator" style="border-bottom: 1px solid #000;"></div>`;
+    // Wrap table in a div with a page break before it
+    const wrappedTable = `
+<!-- PAGE BREAK: Defects table should be on a separate page -->
+<div style="page-break-before: always; break-before: page;"></div>
+<div class="section-title">Defects Summary</div>
+${defectsTableHtml}
+<div class="separator" style="border-bottom: 1px solid #000;"></div>`;
 
     // Combine: insert defects table into general memo before </body> or at the end
     let combinedHtml = generalHtml;

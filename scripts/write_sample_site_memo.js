@@ -88,6 +88,8 @@ let html = template;
 
 // STEP 1: Replace global placeholders
 console.log('\nStep 1: Replacing global placeholders...');
+// Extract just the numeric suffix from memo number (since template already has prefix)
+const memoNumberSuffix = memoNumber.split('/').pop();
 html = html
   .replace(/{{PROJECT_TITLE}}/g, projectTitle)
   .replace(/{{MEMO_NUMBER}}/g, memoNumber)
@@ -95,7 +97,7 @@ html = html
   .replace(/{{DEADLINE}}/g, deadlineStr)
   .replace(/{{SUBJECT}}/g, `Request ${tradeText} defects rectification`);
 
-html = html.replace(/\[accumulate number extraction number\]/gi, memoNumber);
+html = html.replace(/\[accumulate number extraction number\]/gi, memoNumberSuffix);
 html = html.replace(/\[Date of extract defects from defects log\]/gi, dateStr);
 html = html.replace(/\[.*?Date of extract defects from defects log.*?\+\s*14 calendar days.*?\]/gi, deadlineStr);
 html = html.replace(/\[.*?insert date.*?\+\s*14 calendar days.*?\]/gi, deadlineStr);
@@ -111,36 +113,43 @@ try {
     const originalTable = tableMatch[0];
     console.log('  ✓ Found embedded defects table');
     
-    let newTableRows = '';
-    defects.forEach((d, idx) => {
-      const photoCell = '<p>[No photo in sample]</p>';
-      const detailsCell = `
+    // Build new rows: 2 defects per row pair (photo row + details row)
+    let newRows = '';
+    
+    for (let i = 0; i < defects.length; i += 2) {
+      const d1 = defects[i];
+      const d2 = i + 1 < defects.length ? defects[i + 1] : null;
+      
+      // Photo row
+      const photo1 = '<p>[No photo in sample]</p>';
+      const photo2 = d2 ? '<p>[No photo in sample]</p>' : '<p></p>';
+      newRows += `<tr><td style="border:1px solid #000;padding:8px;">${photo1}</td><td style="border:1px solid #000;padding:8px;">${photo2}</td></tr>`;
+      
+      // Details row
+      const detail1 = `
         <p>
-          <strong>${escapeHtml(d.serviceType)}</strong>
-          ${escapeHtml(d.category)}<br/>
-          <strong>Location:</strong> ${escapeHtml(d.location)}<br/>
-          <small>${escapeHtml(d.remarks || '')}</small>
+          <strong>${escapeHtml(d1.serviceType)}</strong> - ${escapeHtml(d1.category)}<br/>
+          <strong>Location:</strong> ${escapeHtml(d1.location)}<br/>
+          <small>${escapeHtml(d1.remarks || '')}</small>
         </p>
       `;
       
-      newTableRows += `
-        <tr>
-          <td style="vertical-align:top;padding:8px;">
-            ${photoCell}
-          </td>
-          <td style="vertical-align:top;padding:8px;">
-            ${detailsCell}
-          </td>
-        </tr>
-      `;
-    });
+      const detail2 = d2 ? `
+        <p>
+          <strong>${escapeHtml(d2.serviceType)}</strong> - ${escapeHtml(d2.category)}<br/>
+          <strong>Location:</strong> ${escapeHtml(d2.location)}<br/>
+          <small>${escapeHtml(d2.remarks || '')}</small>
+        </p>
+      ` : '<p></p>';
+      
+      newRows += `<tr><td style="border:1px solid #000;padding:8px;vertical-align:top;">${detail1}</td><td style="border:1px solid #000;padding:8px;vertical-align:top;">${detail2}</td></tr>`;
+    }
     
-    const newTable = originalTable.replace(
-      /<tbody[^>]*>[\s\S]*?<\/tbody>/i,
-      `<tbody>${newTableRows}</tbody>`
-    );
+    const newTable = `<table style="width:100%;border-collapse:collapse;">${newRows}</table>`;
     html = html.replace(originalTable, newTable);
-    console.log(`  ✓ Populated ${defects.length} defects in table`);
+    console.log(`  ✓ Populated ${defects.length} defects in 2-column table format`);
+  } else {
+    console.log('  ⓘ No embedded table found');
   }
 } catch (err) {
   console.warn('  ✗ Error populating table:', err.message);

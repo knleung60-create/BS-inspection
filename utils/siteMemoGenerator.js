@@ -197,6 +197,8 @@ export const generateSiteMemo = async (defects, projectTitle) => {
 
     // STEP 1: Replace global/document-level placeholders (these appear once in the memo)
     console.log('Replacing global placeholders...');
+    // Extract just the numeric part of memo number (since template already has prefix)
+    const memoNumberSuffix = memoNumber.split('/').pop(); // Gets "0052" from "YTIL46/BSI/M/0052"
     html = html
       .replace(/{{PROJECT_TITLE}}/g, projectTitle || 'N/A')
       .replace(/{{MEMO_NUMBER}}/g, memoNumber)
@@ -205,7 +207,7 @@ export const generateSiteMemo = async (defects, projectTitle) => {
       .replace(/{{SUBJECT}}/g, `Request ${tradeText} defects rectification`);
 
     // Replace all instances of date/deadline placeholders globally
-    html = html.replace(/\[accumulate number extraction number\]/gi, memoNumber);
+    html = html.replace(/\[accumulate number extraction number\]/gi, memoNumberSuffix);
     html = html.replace(/\[Date of extract defects from defects log\]/gi, dateStr);
     // Handle the compound date+14days placeholder (various formats)
     html = html.replace(/\[.*?Date of extract defects from defects log.*?\+\s*14 calendar days.*?\]/gi, deadlineStr);
@@ -216,6 +218,7 @@ export const generateSiteMemo = async (defects, projectTitle) => {
     console.log('Processing embedded defects table...');
     try {
       // Find the defects table: look for a table with placeholder text like "[Defects Photo insert here]"
+      // Note: The table structure is simple <table><tr><td>... without tbody
       const defectsTableRegex = /<table[^>]*>[\s\S]*?\[Defects Photo insert here\][\s\S]*?<\/table>/i;
       const tableMatch = html.match(defectsTableRegex);
       
@@ -223,48 +226,43 @@ export const generateSiteMemo = async (defects, projectTitle) => {
         const originalTable = tableMatch[0];
         console.log('Found embedded defects table in template, populating with actual defects');
         
-        // The template table has a 2-column layout: photo on left, details on right
-        // We need to create rows for EACH defect, replacing all placeholders
-        let newTableRows = '';
-        defectsWithPhotos.forEach((d, idx) => {
-          // Photo cell: replace [Defects Photo insert here] with actual photo
-          const photoCell = d.photoDataUri 
-            ? `<img src="${d.photoDataUri}" style="max-width:2.5in;height:auto;border:1px solid #ddd;" />`
-            : '<p>[No photo available]</p>';
-          
-          // Details cell: include Trade, Category, Location, Remarks
-          const detailsCell = `
-            <p>
-              <strong>${escapeHtml(d.serviceType || '')}</strong>
-              ${escapeHtml(d.category || '')}<br/>
-              <strong>Location:</strong> ${escapeHtml(d.location || '')}<br/>
-              <small>${escapeHtml(d.remarks || '')}</small>
-            </p>
-          `;
-          
-          newTableRows += `
-            <tr>
-              <td style="vertical-align:top;padding:8px;">
-                ${photoCell}
-              </td>
-              <td style="vertical-align:top;padding:8px;">
-                ${detailsCell}
-              </td>
-            </tr>
-          `;
-        });
+        // Build rows: 2 defects per row pair (photo row + details row)
+        let newRows = '';
         
-        // Replace tbody content while preserving table structure
-        const newTable = originalTable.replace(
-          /<tbody[^>]*>[\s\S]*?<\/tbody>/i,
-          `<tbody>${newTableRows}</tbody>`
-        );
+        for (let i = 0; i < defectsWithPhotos.length; i += 2) {
+          const d1 = defectsWithPhotos[i];
+          const d2 = i + 1 < defectsWithPhotos.length ? defectsWithPhotos[i + 1] : null;
+          
+          // Photo row (one or two photos)
+          const photo1 = d1.photoDataUri 
+            ? `<img src="${d1.photoDataUri}" style="max-width:2.5in;height:auto;border:1px solid #ddd;" />`
+            : '<p>[No photo]</p>';
+          
+          const photo2 = d2 && d2.photoDataUri
+            ? `<img src="${d2.photoDataUri}" style="max-width:2.5in;height:auto;border:1px solid #ddd;" />`
+            : (d2 ? '<p>[No photo]</p>' : '<p></p>');
+          
+          newRows += `<tr><td style="border:1px solid #000;padding:8px;">${photo1}</td><td style="border:1px solid #000;padding:8px;">${photo2}</td></tr>`;
+          
+          // Details row
+          const detail1 = `<p><strong>${escapeHtml(d1.serviceType || '')}</strong> - ${escapeHtml(d1.category || '')}<br/><strong>Location:</strong> ${escapeHtml(d1.location || '')}<br/><small>${escapeHtml(d1.remarks || '')}</small></p>`;
+          
+          const detail2 = d2 
+            ? `<p><strong>${escapeHtml(d2.serviceType || '')}</strong> - ${escapeHtml(d2.category || '')}<br/><strong>Location:</strong> ${escapeHtml(d2.location || '')}<br/><small>${escapeHtml(d2.remarks || '')}</small></p>`
+            : '<p></p>';
+          
+          newRows += `<tr><td style="border:1px solid #000;padding:8px;vertical-align:top;">${detail1}</td><td style="border:1px solid #000;padding:8px;vertical-align:top;">${detail2}</td></tr>`;
+        }
+        
+        // Replace the entire original table with new table containing actual data
+        const newTable = `<table style="width:100%;border-collapse:collapse;">${newRows}</table>`;
         html = html.replace(originalTable, newTable);
-        console.log(`Populated ${defectsWithPhotos.length} defects in table`);
+        console.log(`Populated ${defectsWithPhotos.length} defects in 2-column table format`);
+      } else {
+        console.log('No embedded defects table with placeholder found');
       }
     } catch (tableErr) {
       console.warn('Error populating embedded defects table:', tableErr.message);
-      // Continue anyway - the placeholders should still be replaced at document level
     }
 
     // STEP 3: Replace summary-level section placeholders (if any remain outside the table)
