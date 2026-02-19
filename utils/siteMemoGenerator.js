@@ -191,33 +191,73 @@ export const generateSiteMemo = async (defects, projectTitle) => {
   
   if (hasValidTemplate) {
     console.log('Using loaded DOCX template for site memo');
-    // Replace a few common placeholders if present, otherwise we'll append content later
-    html = baseTemplate
+    // Start with template
+    html = baseTemplate;
+
+    // First, replace generic placeholders
+    html = html
       .replace(/{{PROJECT_TITLE}}/g, projectTitle || 'N/A')
       .replace(/{{MEMO_NUMBER}}/g, memoNumber)
       .replace(/{{DATE}}/g, dateStr)
       .replace(/{{DEADLINE}}/g, deadlineStr)
       .replace(/{{SUBJECT}}/g, `Request ${tradeText} defects rectification`);
 
-    // Replace DOCX-style placeholders commonly found in the user's template
+    // Replace DOCX-style brackets placeholders
     try {
       const uniqueCategories = [...new Set(defects.map(d => d.category).filter(Boolean))].join(', ');
       const locationsList = defects.map(d => d.location).filter(Boolean).join(', ');
 
-      html = html.replace(/\[Insert Trade\]/gi, tradeText);
-      html = html.replace(/\[Insert Defects Category\]/gi, uniqueCategories || '[Insert Defects Category]');
-      html = html.replace(/\[Insert Location\]/gi, locationsList || '[Insert Location]');
-      // Replace direct date placeholder with the extraction date
-      html = html.replace(/\[Date of extract defects from defects log\]/gi, dateStr);
-      // Replace combined 'insert date + 14 calendar days' patterns with computed deadline
-      html = html.replace(/\[insert date[^[\]]*\[Date of extract defects from defects log\][^\]]*\+\s*14 calendar days[^\]]*\]/gi, deadlineStr);
-      html = html.replace(/\[insert date[^\]]*\+\s*14 calendar days[^\]]*\]/gi, deadlineStr);
-      // Fallback replacement for generic phrasing
-      html = html.replace(/\[Date of extract defects from defects log\]\s*\+\s*14 calendar days/gi, deadlineStr);
+      // Replace global placeholders first
       html = html.replace(/\[accumulate number extraction number\]/gi, memoNumber);
+      html = html.replace(/\[Date of extract defects from defects log\]/gi, dateStr);
+      html = html.replace(/\[insert date[^\]]*\+\s*14 calendar days[^\]]*\]/gi, deadlineStr);
+
+      // Replace Trade/Category/Location placeholders (first occurrence only for summary section)
+      html = html.replace(/\[Insert Trade\]/i, tradeText);
+      html = html.replace(/\[Insert Defects Category\]/i, uniqueCategories || '[Insert Defects Category]');
+      html = html.replace(/\[Insert Location\]/i, locationsList || '[Insert Location]');
     } catch (e) {
-      // Non-fatal: proceed even if replacements fail
       console.warn('Placeholder replacement warning:', e);
+    }
+
+    // Now handle the embedded defects table in the template
+    // Look for the defects table pattern and populate it with actual defect data
+    try {
+      // Find the defects table: look for a table with placeholder text like "[Defects Photo insert here]"
+      const defectsTableRegex = /<table[^>]*>[\s\S]*?\[Defects Photo insert here\][\s\S]*?<\/table>/i;
+      const tableMatch = html.match(defectsTableRegex);
+      
+      if (tableMatch) {
+        const originalTable = tableMatch[0];
+        console.log('Found embedded defects table in template, populating with actual defects');
+        
+        // Generate a new table with defect data
+        // The template table has a 2-column layout: photo on left, details on right
+        let newTableRows = '';
+        defectsWithPhotos.forEach((d, idx) => {
+          const photoCell = d.photoDataUri 
+            ? `<img src="${d.photoDataUri}" style="max-width:2.5in;height:auto;border:1px solid #ddd;" />`
+            : '[No photo available]';
+          const detailsCell = `${escapeHtml(d.serviceType)} - ${escapeHtml(d.category)}<br/><strong>Location:</strong> ${escapeHtml(d.location)}<br/><small>${escapeHtml(d.remarks || '')}</small>`;
+          
+          newTableRows += `
+            <tr>
+              <td style="vertical-align:top;padding:8px;"><p>${photoCell}</p></td>
+              <td style="vertical-align:top;padding:8px;"><p>${detailsCell}</p></td>
+            </tr>
+          `;
+        });
+        
+        // Replace the original table with the populated one, preserving structure
+        const newTable = originalTable.replace(
+          /<tbody>[\s\S]*?<\/tbody>/i,
+          `<tbody>${newTableRows}</tbody>`
+        );
+        html = html.replace(originalTable, newTable);
+      }
+    } catch (tableErr) {
+      console.warn('Error populating embedded defects table:', tableErr);
+      // Continue anyway - the placeholders should still be replaced
     }
 
     if (html.includes('{{DEFECTS_TABLE}}')) {
@@ -226,11 +266,6 @@ export const generateSiteMemo = async (defects, projectTitle) => {
 
     if (html.includes('{{PHOTOS}}')) {
       html = html.replace(/{{PHOTOS}}/g, photosHtml);
-    }
-
-    // If neither placeholder exists, append the defects table and photos before </body>
-    if (!html.includes(defectsSummaryHtml)) {
-      html = html.replace(/<\/body>/i, `${defectsSummaryHtml}${photosHtml}</body>`);
     }
   } else {
     console.log('Template invalid or empty. Using built-in fallback layout.');
