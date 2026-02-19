@@ -1,6 +1,9 @@
 import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import * as ImageManipulator from 'expo-image-manipulator';
+import { Platform } from 'react-native';
+import { SERVICE_TYPE_NAMES } from '../constants/defectData';
 
 // Generate Site Memo PDF from selected defects
 export const generateSiteMemo = async (defects, projectTitle) => {
@@ -29,19 +32,78 @@ export const generateSiteMemo = async (defects, projectTitle) => {
     defectsByType[defect.serviceType].push(defect);
   });
   
-  // Read defect photos (if any) and convert to base64 data URIs so they can be embedded in the PDF
-  const defectsWithPhotos = await Promise.all(defects.map(async (defect) => {
+  // Read defect photos (if any), create thumbnails and prepare stable URIs for the PDF
+  const imagesDir = `${FileSystem.documentDirectory}site_memo_images/`;
+  try {
+    const existing = await FileSystem.readDirectoryAsync(imagesDir);
+    // remove any previous temp images to avoid buildup
+    await Promise.all(existing.map(name => FileSystem.deleteAsync(imagesDir + name).catch(()=>{})));
+  } catch (e) {
+    try {
+      await FileSystem.makeDirectoryAsync(imagesDir, { intermediates: true });
+    } catch (mkdirErr) {
+      console.warn('Unable to create images directory for site memo:', mkdirErr);
+    }
+  }
+
+  const defectsWithPhotos = await Promise.all(defects.map(async (defect, idx) => {
     let photoDataUri = null;
     try {
       if (defect.photoPath) {
-        const parts = defect.photoPath.split('.');
-        const ext = parts.length > 1 ? parts.pop().toLowerCase() : 'jpg';
-        const mime = ext === 'png' ? 'image/png' : 'image/jpeg';
-        const base64 = await FileSystem.readAsStringAsync(defect.photoPath, { encoding: FileSystem.EncodingType.Base64 });
-        photoDataUri = `data:${mime};base64,${base64}`;
+        // create thumbnail using a max width in inches (preserve aspect ratio)
+        const maxWidthInches = 3.0; // per user request
+        const dpi = 96; // assume 96 DPI for screen-to-pixel conversion
+        const maxWidthPx = Math.round(maxWidthInches * dpi);
+        const manipResult = await ImageManipulator.manipulateAsync(
+          defect.photoPath,
+          [{ resize: { width: maxWidthPx } }],
+          { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG }
+        );
+
+        const fileName = `site_memo_${Date.now()}_${idx}.jpg`;
+        const destPath = imagesDir + fileName;
+        try {
+          await FileSystem.copyAsync({ from: manipResult.uri, to: destPath });
+          // Also copy the original full-resolution photo as an attachment
+          let fullDest = null;
+          try {
+            const origParts = defect.photoPath.split('/');
+            const origName = origParts[origParts.length - 1] || `orig_${idx}.jpg`;
+            fullDest = imagesDir + `full_${Date.now()}_${idx}_` + origName;
+            await FileSystem.copyAsync({ from: defect.photoPath, to: fullDest });
+            // record attachment path later
+          } catch (fullCopyErr) {
+            // ignore full copy errors, we'll fallback to base64 if needed
+            fullDest = null;
+          }
+
+          // On Android, try to get a content:// URI which WebView/Print can load
+          if (Platform.OS === 'android' && FileSystem.getContentUriAsync) {
+            try {
+              const content = await FileSystem.getContentUriAsync(destPath);
+              photoDataUri = content && content.uri ? content.uri : destPath;
+            } catch (contentErr) {
+              console.warn('getContentUriAsync failed, using file URI:', contentErr);
+              photoDataUri = destPath;
+            }
+          } else {
+            photoDataUri = destPath;
+          }
+          // attach full image path to defect for later writing
+          if (fullDest) defect._fullPhotoPath = fullDest;
+        } catch (copyErr) {
+          // fallback: embed as base64 from thumbnail
+          try {
+            const base64 = await FileSystem.readAsStringAsync(manipResult.uri, { encoding: FileSystem.EncodingType.Base64 });
+            photoDataUri = `data:image/jpeg;base64,${base64}`;
+          } catch (readErr) {
+            console.warn('Unable to read/copy defect photo for embedding:', defect.defectId || defect.location, readErr);
+            photoDataUri = null;
+          }
+        }
       }
     } catch (err) {
-      console.warn('Unable to read defect photo for embedding:', defect.defectId || defect.location, err);
+      console.warn('Unable to process defect photo for embedding:', defect.defectId || defect.location, err);
       photoDataUri = null;
     }
     return { ...defect, photoDataUri };
@@ -107,7 +169,7 @@ export const generateSiteMemo = async (defects, projectTitle) => {
             <td style="border: 1px solid #000; padding: 6px;">${escapeHtml(d.location || '')}</td>
             <td style="border: 1px solid #000; padding: 6px;">${escapeHtml(d.remarks || '')}<br/><small>${escapeHtml(d.createdAt || '')}</small></td>
             <td style="border: 1px solid #000; padding: 6px; text-align: center;">
-              ${d.photoDataUri ? `<img src="${d.photoDataUri}" style="max-width:120px;height:auto;border:1px solid #ddd;" />` : 'No photo'}
+              ${d.photoDataUri ? `<img src="${d.photoDataUri}" style="max-width:3in;height:auto;border:1px solid #ddd;" />` : 'No photo'}
             </td>
           </tr>
         `).join('')}
@@ -120,11 +182,15 @@ export const generateSiteMemo = async (defects, projectTitle) => {
 
   const photosHtml = defectsWithPhotos.map((d, i) => d.photoDataUri ? `
       <div class="section-title">Photo ${i + 1}: ${d.serviceType} - ${d.location}</div>
-      <div><img src="${d.photoDataUri}" class="defect-photo" /></div>
+      <div><img src="${d.photoDataUri}" class="defect-photo" style="max-width:3in;height:auto;" /></div>
     ` : '').join('');
 
   let html = '';
-  if (baseTemplate) {
+  // Check if template exists and has meaningful content (more than just module.exports)
+  const hasValidTemplate = baseTemplate && baseTemplate.trim().length > 50;
+  
+  if (hasValidTemplate) {
+    console.log('Using loaded DOCX template for site memo');
     // Replace a few common placeholders if present, otherwise we'll append content later
     html = baseTemplate
       .replace(/{{PROJECT_TITLE}}/g, projectTitle || 'N/A')
@@ -167,6 +233,7 @@ export const generateSiteMemo = async (defects, projectTitle) => {
       html = html.replace(/<\/body>/i, `${defectsSummaryHtml}${photosHtml}</body>`);
     }
   } else {
+    console.log('Template invalid or empty. Using built-in fallback layout.');
     // Fallback: use the built-in layout (keeps previous look)
     html = `
     <!DOCTYPE html>
@@ -229,7 +296,23 @@ export const generateSiteMemo = async (defects, projectTitle) => {
   `;
   }
   try {
-    const { uri } = await Print.printToFileAsync({ html });
+    let uri;
+    try {
+      const res = await Print.printToFileAsync({ html });
+      uri = res.uri;
+    } catch (printErr) {
+      console.error('Error printing site memo (first attempt):', printErr);
+      // Retry without embedded images (some devices crash with large base64 images)
+      try {
+        const htmlWithoutImages = html.replace(/<img[^>]*src=["'][^"']+["'][^>]*>/g, '<div style="font-size:10pt;color:#666">[Photo omitted in this copy]</div>');
+        const res2 = await Print.printToFileAsync({ html: htmlWithoutImages });
+        uri = res2.uri;
+        console.warn('Printed site memo without images as fallback');
+      } catch (printErr2) {
+        console.error('Error printing site memo (fallback without images):', printErr2);
+        throw printErr2;
+      }
+    }
     const fileName = `SiteMemo_${memoNumber.replace(/\//g, '_')}_${Date.now()}.pdf`;
     const newPath = `${FileSystem.documentDirectory}${fileName}`;
     
@@ -237,7 +320,18 @@ export const generateSiteMemo = async (defects, projectTitle) => {
       from: uri,
       to: newPath,
     });
-    
+
+    // Write attachments metadata (full-resolution photos) alongside the PDF
+    try {
+      const attachments = defectsWithPhotos.map(d => d._fullPhotoPath).filter(Boolean);
+      if (attachments.length > 0) {
+        const attachPath = `${newPath}.attachments.json`;
+        await FileSystem.writeAsStringAsync(attachPath, JSON.stringify(attachments, null, 2), { encoding: FileSystem.EncodingType.UTF8 });
+      }
+    } catch (attachErr) {
+      console.warn('Failed to write attachments metadata for site memo:', attachErr);
+    }
+
     return newPath;
   } catch (error) {
     console.error('Error generating site memo PDF:', error);

@@ -4,7 +4,13 @@ const path = require('path');
 
 (async () => {
   try {
-    const inputPath = path.resolve(__dirname, '..', 'assets', 'templates', 'General_defects_site_memo.docx');
+    // Allow passing a custom DOCX path as the first argument. If not provided,
+    // fall back to the repo's assets template.
+    const argPath = process.argv[2];
+    const inputPath = argPath
+      ? path.resolve(argPath)
+      : path.resolve(__dirname, '..', 'assets', 'templates', 'General_defects_site_memo.docx');
+
     if (!fs.existsSync(inputPath)) {
       console.error('DOCX template not found at:', inputPath);
       process.exit(1);
