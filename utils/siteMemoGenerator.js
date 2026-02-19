@@ -4,6 +4,7 @@ import * as Sharing from 'expo-sharing';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { Platform } from 'react-native';
 import { SERVICE_TYPE_NAMES } from '../constants/defectData';
+import { getNextMemoNumber } from './storage';
 
 // Generate Site Memo PDF from selected defects
 export const generateSiteMemo = async (defects, projectTitle) => {
@@ -20,8 +21,8 @@ export const generateSiteMemo = async (defects, projectTitle) => {
   deadlineDate.setDate(deadlineDate.getDate() + 14);
   const deadlineStr = deadlineDate.toLocaleDateString('en-GB');
   
-  // Generate Site Memo number (using timestamp for uniqueness)
-  const memoNumber = `HTS/MC/SM/${Date.now().toString().slice(-6)}`;
+  // Generate Site Memo number (auto-increment from YTIL46/BSI/M/0050)
+  const memoNumber = await getNextMemoNumber();
   
   // Group defects by service type for better organization
   const defectsByType = {};

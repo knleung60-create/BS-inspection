@@ -2,6 +2,37 @@ const fs = require('fs');
 const path = require('path');
 const template = require('../utils/siteMemoTemplate');
 
+// Memo number configuration (matching storage.js)
+const MEMO_PREFIX = 'YTIL46/BSI/M/';
+const MEMO_START_NUMBER = 50;
+const MEMO_COUNTER_FILE = path.resolve(__dirname, '.memo_counter');
+
+// Helper to get next memo number (file-based for Node script)
+function getNextMemoNumber() {
+  let nextNumber = MEMO_START_NUMBER;
+  
+  if (fs.existsSync(MEMO_COUNTER_FILE)) {
+    try {
+      const stored = fs.readFileSync(MEMO_COUNTER_FILE, 'utf8').trim();
+      const match = stored.match(/(\d+)$/);
+      if (match) {
+        nextNumber = parseInt(match[1], 10) + 1;
+      }
+    } catch (err) {
+      console.warn('Could not read memo counter file:', err.message);
+    }
+  }
+  
+  const formattedNumber = nextNumber.toString().padStart(4, '0');
+  const memoNumber = `${MEMO_PREFIX}${formattedNumber}`;
+  
+  // Save for next time
+  fs.writeFileSync(MEMO_COUNTER_FILE, memoNumber, 'utf8');
+  console.log('Generated memo number:', memoNumber);
+  
+  return memoNumber;
+}
+
 // Helper to escape HTML
 const escapeHtml = (str) => {
   if (!str && str !== 0) return '';
@@ -40,12 +71,12 @@ const dateStr = currentDate.toLocaleDateString('en-GB');
 const deadlineDate = new Date(currentDate);
 deadlineDate.setDate(deadlineDate.getDate() + 14);
 const deadlineStr = deadlineDate.toLocaleDateString('en-GB');
-const memoNumber = `HTS/MC/SM/${Date.now().toString().slice(-6)}`;
+const memoNumber = getNextMemoNumber();
 const projectTitle = 'Sample Project';
 const uniqueTypes = [...new Set(defects.map(d => d.serviceType))];
 const tradeText = uniqueTypes.length === 1 ? uniqueTypes[0] : 'Multiple Trades';
 
-console.log('Sample memo generation with placeholders:');
+console.log('Sample memo generation with custom memo numbering:');
 console.log('  Project:', projectTitle);
 console.log('  Memo #:', memoNumber);
 console.log('  Date:', dateStr);
