@@ -90,11 +90,15 @@ export default function DefectLogScreen() {
       const defectId = defect.defectId?.toLowerCase() || '';
       const category = defect.category?.toLowerCase() || '';
       const remarks = defect.remarks?.toLowerCase() || '';
+      const serviceTypeCode = defect.serviceType?.toLowerCase() || '';
+      const serviceTypeName = (SERVICE_TYPE_NAMES[defect.serviceType] || '').toLowerCase();
       
       return location.includes(lowercaseQuery) ||
              defectId.includes(lowercaseQuery) ||
              category.includes(lowercaseQuery) ||
-             remarks.includes(lowercaseQuery);
+             remarks.includes(lowercaseQuery) ||
+             serviceTypeCode.includes(lowercaseQuery) ||
+             serviceTypeName.includes(lowercaseQuery);
     });
     
     setDisplayedDefects(searched);

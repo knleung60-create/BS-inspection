@@ -10,6 +10,7 @@ import { getCurrentProject } from '../utils/storage';
 export default function StatisticsScreen() {
   const [defects, setDefects] = useState([]);
   const [statistics, setStatistics] = useState({});
+  const [unitStatistics, setUnitStatistics] = useState({});
   const [selectedProject, setSelectedProject] = useState('All');
   const [projects, setProjects] = useState([]);
   const [projectMenuVisible, setProjectMenuVisible] = useState(false);
@@ -48,8 +49,19 @@ export default function StatisticsScreen() {
         }
         organized[stat.serviceType][stat.category] = stat.count;
       });
-      
+
+      // Compute per-unit (location) statistics for each service type
+      const unitStats = {};
+      SERVICE_TYPES.forEach(type => { unitStats[type] = {}; });
+      allDefects.forEach(d => {
+        const type = d.serviceType || 'Unknown';
+        const loc = d.location && d.location.trim() !== '' ? d.location.trim() : 'Unknown Location';
+        if (!unitStats[type]) unitStats[type] = {};
+        unitStats[type][loc] = (unitStats[type][loc] || 0) + 1;
+      });
+
       setStatistics(organized);
+      setUnitStatistics(unitStats);
     } catch (error) {
       console.error('Error loading statistics:', error);
       Alert.alert('Error', 'Failed to load statistics');
@@ -219,6 +231,26 @@ export default function StatisticsScreen() {
                       </DataTable.Row>
                     ))}
                 </DataTable>
+                {/* Unit-level breakdown for this service type */}
+                {unitStatistics[type] && Object.keys(unitStatistics[type]).length > 0 && (
+                  <>
+                    <Text style={[styles.subtitle, { marginTop: 12 }]}>By Unit</Text>
+                    <DataTable>
+                      <DataTable.Header>
+                        <DataTable.Title style={styles.categoryColumn}>Unit / Location</DataTable.Title>
+                        <DataTable.Title numeric style={styles.countColumn}>Count</DataTable.Title>
+                      </DataTable.Header>
+                      {Object.keys(unitStatistics[type])
+                        .sort((a, b) => unitStatistics[type][b] - unitStatistics[type][a])
+                        .map((loc, idx) => (
+                          <DataTable.Row key={`unit-${idx}`}>
+                            <DataTable.Cell style={styles.categoryColumn}>{loc}</DataTable.Cell>
+                            <DataTable.Cell numeric style={styles.countColumn}>{unitStatistics[type][loc]}</DataTable.Cell>
+                          </DataTable.Row>
+                        ))}
+                    </DataTable>
+                  </>
+                )}
               </Card.Content>
             </Card>
           );
