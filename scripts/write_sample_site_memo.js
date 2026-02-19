@@ -45,60 +45,88 @@ const projectTitle = 'Sample Project';
 const uniqueTypes = [...new Set(defects.map(d => d.serviceType))];
 const tradeText = uniqueTypes.length === 1 ? uniqueTypes[0] : 'Multiple Trades';
 
-let html = template
+console.log('Sample memo generation with placeholders:');
+console.log('  Project:', projectTitle);
+console.log('  Memo #:', memoNumber);
+console.log('  Date:', dateStr);
+console.log('  Deadline:', deadlineStr);
+console.log('  Trade:', tradeText);
+console.log('  Defects:', defects.length);
+
+let html = template;
+
+// STEP 1: Replace global placeholders
+console.log('\nStep 1: Replacing global placeholders...');
+html = html
   .replace(/{{PROJECT_TITLE}}/g, projectTitle)
   .replace(/{{MEMO_NUMBER}}/g, memoNumber)
   .replace(/{{DATE}}/g, dateStr)
   .replace(/{{DEADLINE}}/g, deadlineStr)
   .replace(/{{SUBJECT}}/g, `Request ${tradeText} defects rectification`);
 
-// Replace DOCX-style placeholders
-const uniqueCategories = [...new Set(defects.map(d => d.category).filter(Boolean))].join(', ');
-const locationsList = defects.map(d => d.location).filter(Boolean).join(', ');
-
 html = html.replace(/\[accumulate number extraction number\]/gi, memoNumber);
 html = html.replace(/\[Date of extract defects from defects log\]/gi, dateStr);
-html = html.replace(/\[insert date[^\]]*\+\s*14 calendar days[^\]]*\]/gi, deadlineStr);
-html = html.replace(/\[Insert Trade\]/i, tradeText);
-html = html.replace(/\[Insert Defects Category\]/i, uniqueCategories);
-html = html.replace(/\[Insert Location\]/i, locationsList);
+html = html.replace(/\[.*?Date of extract defects from defects log.*?\+\s*14 calendar days.*?\]/gi, deadlineStr);
+html = html.replace(/\[.*?insert date.*?\+\s*14 calendar days.*?\]/gi, deadlineStr);
+console.log('  ✓ Global placeholders replaced');
 
-// Replace embedded defects table with actual data
+// STEP 2: Populate embedded defects table
+console.log('\nStep 2: Populating embedded defects table...');
 try {
   const defectsTableRegex = /<table[^>]*>[\s\S]*?\[Defects Photo insert here\][\s\S]*?<\/table>/i;
   const tableMatch = html.match(defectsTableRegex);
   
   if (tableMatch) {
     const originalTable = tableMatch[0];
-    console.log('Found embedded defects table in template');
+    console.log('  ✓ Found embedded defects table');
     
-    // Generate table with sample defects
     let newTableRows = '';
     defects.forEach((d, idx) => {
-      const photoCell = '[No photo in sample]';
-      const detailsCell = `${escapeHtml(d.serviceType)} - ${escapeHtml(d.category)}<br/><strong>Location:</strong> ${escapeHtml(d.location)}<br/><small>${escapeHtml(d.remarks || '')}</small>`;
+      const photoCell = '<p>[No photo in sample]</p>';
+      const detailsCell = `
+        <p>
+          <strong>${escapeHtml(d.serviceType)}</strong>
+          ${escapeHtml(d.category)}<br/>
+          <strong>Location:</strong> ${escapeHtml(d.location)}<br/>
+          <small>${escapeHtml(d.remarks || '')}</small>
+        </p>
+      `;
       
       newTableRows += `
         <tr>
-          <td style="vertical-align:top;padding:8px;"><p>${photoCell}</p></td>
-          <td style="vertical-align:top;padding:8px;"><p>${detailsCell}</p></td>
+          <td style="vertical-align:top;padding:8px;">
+            ${photoCell}
+          </td>
+          <td style="vertical-align:top;padding:8px;">
+            ${detailsCell}
+          </td>
         </tr>
       `;
     });
     
     const newTable = originalTable.replace(
-      /<tbody>[\s\S]*?<\/tbody>/i,
+      /<tbody[^>]*>[\s\S]*?<\/tbody>/i,
       `<tbody>${newTableRows}</tbody>`
     );
     html = html.replace(originalTable, newTable);
-    console.log('Populated defects table with sample data');
+    console.log(`  ✓ Populated ${defects.length} defects in table`);
   }
 } catch (err) {
-  console.warn('Error populating table:', err.message);
+  console.warn('  ✗ Error populating table:', err.message);
 }
+
+// STEP 3: Replace summary-level placeholders
+console.log('\nStep 3: Replacing summary placeholders...');
+const uniqueCategories = [...new Set(defects.map(d => d.category).filter(Boolean))].join(', ');
+const locationsList = defects.map(d => d.location).filter(Boolean).join(', ');
+
+html = html.replace(/\[Insert Trade\]/gi, tradeText);
+html = html.replace(/\[Insert Defects Category\]/gi, uniqueCategories);
+html = html.replace(/\[Insert Location\]/gi, locationsList);
+console.log('  ✓ Summary placeholders replaced');
 
 const outDir = path.resolve(__dirname, 'output');
 if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 const outPath = path.join(outDir, `sample_site_memo_${Date.now()}.html`);
 fs.writeFileSync(outPath, html, 'utf8');
-console.log('Sample site memo HTML written to', outPath);
+console.log('\n✓ Sample site memo HTML written to', outPath);

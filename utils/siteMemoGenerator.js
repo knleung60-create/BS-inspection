@@ -194,7 +194,8 @@ export const generateSiteMemo = async (defects, projectTitle) => {
     // Start with template
     html = baseTemplate;
 
-    // First, replace generic placeholders
+    // STEP 1: Replace global/document-level placeholders (these appear once in the memo)
+    console.log('Replacing global placeholders...');
     html = html
       .replace(/{{PROJECT_TITLE}}/g, projectTitle || 'N/A')
       .replace(/{{MEMO_NUMBER}}/g, memoNumber)
@@ -202,26 +203,16 @@ export const generateSiteMemo = async (defects, projectTitle) => {
       .replace(/{{DEADLINE}}/g, deadlineStr)
       .replace(/{{SUBJECT}}/g, `Request ${tradeText} defects rectification`);
 
-    // Replace DOCX-style brackets placeholders
-    try {
-      const uniqueCategories = [...new Set(defects.map(d => d.category).filter(Boolean))].join(', ');
-      const locationsList = defects.map(d => d.location).filter(Boolean).join(', ');
+    // Replace all instances of date/deadline placeholders globally
+    html = html.replace(/\[accumulate number extraction number\]/gi, memoNumber);
+    html = html.replace(/\[Date of extract defects from defects log\]/gi, dateStr);
+    // Handle the compound date+14days placeholder (various formats)
+    html = html.replace(/\[.*?Date of extract defects from defects log.*?\+\s*14 calendar days.*?\]/gi, deadlineStr);
+    html = html.replace(/\[.*?insert date.*?\+\s*14 calendar days.*?\]/gi, deadlineStr);
 
-      // Replace global placeholders first
-      html = html.replace(/\[accumulate number extraction number\]/gi, memoNumber);
-      html = html.replace(/\[Date of extract defects from defects log\]/gi, dateStr);
-      html = html.replace(/\[insert date[^\]]*\+\s*14 calendar days[^\]]*\]/gi, deadlineStr);
-
-      // Replace Trade/Category/Location placeholders (first occurrence only for summary section)
-      html = html.replace(/\[Insert Trade\]/i, tradeText);
-      html = html.replace(/\[Insert Defects Category\]/i, uniqueCategories || '[Insert Defects Category]');
-      html = html.replace(/\[Insert Location\]/i, locationsList || '[Insert Location]');
-    } catch (e) {
-      console.warn('Placeholder replacement warning:', e);
-    }
-
-    // Now handle the embedded defects table in the template
-    // Look for the defects table pattern and populate it with actual defect data
+    // STEP 2: Handle the embedded defects table separately
+    // This table may have placeholders that need individual row population
+    console.log('Processing embedded defects table...');
     try {
       // Find the defects table: look for a table with placeholder text like "[Defects Photo insert here]"
       const defectsTableRegex = /<table[^>]*>[\s\S]*?\[Defects Photo insert here\][\s\S]*?<\/table>/i;
@@ -231,33 +222,62 @@ export const generateSiteMemo = async (defects, projectTitle) => {
         const originalTable = tableMatch[0];
         console.log('Found embedded defects table in template, populating with actual defects');
         
-        // Generate a new table with defect data
         // The template table has a 2-column layout: photo on left, details on right
+        // We need to create rows for EACH defect, replacing all placeholders
         let newTableRows = '';
         defectsWithPhotos.forEach((d, idx) => {
+          // Photo cell: replace [Defects Photo insert here] with actual photo
           const photoCell = d.photoDataUri 
             ? `<img src="${d.photoDataUri}" style="max-width:2.5in;height:auto;border:1px solid #ddd;" />`
-            : '[No photo available]';
-          const detailsCell = `${escapeHtml(d.serviceType)} - ${escapeHtml(d.category)}<br/><strong>Location:</strong> ${escapeHtml(d.location)}<br/><small>${escapeHtml(d.remarks || '')}</small>`;
+            : '<p>[No photo available]</p>';
+          
+          // Details cell: include Trade, Category, Location, Remarks
+          const detailsCell = `
+            <p>
+              <strong>${escapeHtml(d.serviceType || '')}</strong>
+              ${escapeHtml(d.category || '')}<br/>
+              <strong>Location:</strong> ${escapeHtml(d.location || '')}<br/>
+              <small>${escapeHtml(d.remarks || '')}</small>
+            </p>
+          `;
           
           newTableRows += `
             <tr>
-              <td style="vertical-align:top;padding:8px;"><p>${photoCell}</p></td>
-              <td style="vertical-align:top;padding:8px;"><p>${detailsCell}</p></td>
+              <td style="vertical-align:top;padding:8px;">
+                ${photoCell}
+              </td>
+              <td style="vertical-align:top;padding:8px;">
+                ${detailsCell}
+              </td>
             </tr>
           `;
         });
         
-        // Replace the original table with the populated one, preserving structure
+        // Replace tbody content while preserving table structure
         const newTable = originalTable.replace(
-          /<tbody>[\s\S]*?<\/tbody>/i,
+          /<tbody[^>]*>[\s\S]*?<\/tbody>/i,
           `<tbody>${newTableRows}</tbody>`
         );
         html = html.replace(originalTable, newTable);
+        console.log(`Populated ${defectsWithPhotos.length} defects in table`);
       }
     } catch (tableErr) {
-      console.warn('Error populating embedded defects table:', tableErr);
-      // Continue anyway - the placeholders should still be replaced
+      console.warn('Error populating embedded defects table:', tableErr.message);
+      // Continue anyway - the placeholders should still be replaced at document level
+    }
+
+    // STEP 3: Replace summary-level section placeholders (if any remain outside the table)
+    // These are typically in the summary section BEFORE the table
+    try {
+      const uniqueCategories = [...new Set(defects.map(d => d.category).filter(Boolean))].join(', ');
+      const locationsList = defects.map(d => d.location).filter(Boolean).join(', ');
+
+      // Replace remaining [Insert Trade] placeholders (outside table) with aggregated values
+      html = html.replace(/\[Insert Trade\]/gi, tradeText);
+      html = html.replace(/\[Insert Defects Category\]/gi, uniqueCategories || 'Multiple Categories');
+      html = html.replace(/\[Insert Location\]/gi, locationsList || 'Multiple Locations');
+    } catch (summaryErr) {
+      console.warn('Error replacing summary placeholders:', summaryErr.message);
     }
 
     if (html.includes('{{DEFECTS_TABLE}}')) {
