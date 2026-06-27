@@ -1,0 +1,13 @@
+{
+  "name": "building-services-defect-sync-server",
+  "version": "1.0.0",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.3",
+    "multer": "^2.0.2"
+  }
+}
