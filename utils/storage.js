@@ -3,6 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const CURRENT_PROJECT_KEY = '@current_project';
 // --- (新) 我們為 PDF 計數器添加的新 KEY ---
 const SITE_MEMO_COUNT_KEY = '@site_memo_count';
+const NAS_SERVER_IP_KEY = '@nas_server_ip';
+const USER_ID_KEY = '@user_id';
 
 export const saveCurrentProject = async (projectTitle) => {
   try {
@@ -55,4 +57,43 @@ export const getSiteMemoCount = async () => {
     console.error('Error getting site memo count:', error);
     return '0';
   }
+};
+
+export const saveNasIp = async (ip) => {
+  try {
+    await AsyncStorage.setItem(NAS_SERVER_IP_KEY, ip);
+  } catch (error) {
+    console.error('Error saving NAS IP:', error);
+  }
+};
+
+export const getNasIp = async () => {
+  try {
+    return await AsyncStorage.getItem(NAS_SERVER_IP_KEY);
+  } catch (error) {
+    console.error('Error getting NAS IP:', error);
+    return null;
+  }
+};
+
+export const saveUserId = async (id) => {
+  try {
+    await AsyncStorage.setItem(USER_ID_KEY, id);
+  } catch (error) {
+    console.error('Error saving User ID:', error);
+  }
+};
+
+export const getUserId = async () => {
+  try {
+    let id = await AsyncStorage.getItem(USER_ID_KEY);
+    if (!id) {
+      id = `USER-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      await saveUserId(id);
+    }
+    return id;
+  } catch (error) {
+    console.error('Error getting User ID:', error);
+    return 'UNKNOWN_USER';
+  }
 };

@@ -19,9 +19,23 @@ export const initDatabase = async () => {
         location TEXT NOT NULL,
         remarks TEXT,
         photoPath TEXT NOT NULL,
-        createdAt TEXT NOT NULL
+        createdAt TEXT NOT NULL,
+        syncStatus INTEGER DEFAULT 0,
+        serverId INTEGER
       );
     `);
+    
+    // Add columns if they don't exist (for existing databases)
+    try {
+      await db.execAsync('ALTER TABLE defects ADD COLUMN syncStatus INTEGER DEFAULT 0;');
+    } catch (e) {
+      // Column might already exist
+    }
+    try {
+      await db.execAsync('ALTER TABLE defects ADD COLUMN serverId INTEGER;');
+    } catch (e) {
+      // Column might already exist
+    }
     
     console.log('Database initialized successfully');
     return db;
@@ -180,6 +194,54 @@ export const deleteDefect = async (id) => {
   } catch (error) {
     console.error('Error deleting defect:', error);
     throw error;
+  }
+};
+
+export const getUnsyncedDefects = async () => {
+  try {
+    const database = await getDatabase();
+    const rows = await database.getAllAsync('SELECT * FROM defects WHERE syncStatus = 0');
+    return rows;
+  } catch (error) {
+    console.error('Error getting unsynced defects:', error);
+    return [];
+  }
+};
+
+export const markDefectSynced = async (id, serverId) => {
+  try {
+    const database = await getDatabase();
+    await database.runAsync(
+      'UPDATE defects SET syncStatus = 1, serverId = ? WHERE id = ?',
+      [serverId, id]
+    );
+    console.log(`Defect ${id} marked as synced with serverId ${serverId}`);
+  } catch (error) {
+    console.error('Error marking defect as synced:', error);
+  }
+};
+
+export const updateDefectFromServer = async (defect) => {
+  try {
+    const database = await getDatabase();
+    // Check if defectId already exists
+    const existing = await database.getFirstAsync('SELECT id FROM defects WHERE defectId = ?', [defect.defectId]);
+    
+    if (existing) {
+      // Update existing record if it came from server
+      await database.runAsync(
+        'UPDATE defects SET projectTitle = ?, serviceType = ?, category = ?, location = ?, remarks = ?, photoPath = ?, createdAt = ?, syncStatus = 1, serverId = ? WHERE defectId = ?',
+        [defect.projectTitle, defect.serviceType, defect.category, defect.location, defect.remarks, defect.photoPath, defect.createdAt, defect.id, defect.defectId]
+      );
+    } else {
+      // Insert new record
+      await database.runAsync(
+        'INSERT INTO defects (defectId, projectTitle, serviceType, category, location, remarks, photoPath, createdAt, syncStatus, serverId) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)',
+        [defect.defectId, defect.projectTitle, defect.serviceType, defect.category, defect.location, defect.remarks, defect.photoPath, defect.createdAt, defect.id]
+      );
+    }
+  } catch (error) {
+    console.error('Error updating defect from server:', error);
   }
 };
 

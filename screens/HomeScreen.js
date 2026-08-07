@@ -1,11 +1,49 @@
-import React from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { Button, Card, Title, Paragraph, Surface } from 'react-native-paper';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, Alert, RefreshControl } from 'react-native';
+import { Button, Card, Title, Paragraph, Surface, TextInput, ActivityIndicator } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
+import { syncWithNas } from '../utils/syncManager';
+import { getNasIp, saveNasIp } from '../utils/storage';
 
 export default function HomeScreen({ navigation }) {
+  const [nasIp, setNasIp] = useState('');
+  const [syncing, setSyncing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    loadSettings();
+  }, []);
+
+  const loadSettings = async () => {
+    const ip = await getNasIp();
+    if (ip) setNasIp(ip);
+  };
+
+  const handleSync = async () => {
+    if (!nasIp.trim()) {
+      Alert.alert('Error', 'Please enter NAS IP address first');
+      return;
+    }
+
+    setSyncing(true);
+    try {
+      await saveNasIp(nasIp.trim());
+      await syncWithNas();
+      Alert.alert('Success', 'Data synchronized successfully!');
+    } catch (error) {
+      Alert.alert('Sync Failed', error.message || 'Check your connection and NAS IP');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView 
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={loadSettings} />
+      }
+    >
       <LinearGradient
         colors={['#667eea', '#764ba2']}
         style={styles.headerGradient}
@@ -22,6 +60,44 @@ export default function HomeScreen({ navigation }) {
       </LinearGradient>
 
       <View style={styles.content}>
+        {/* NAS Sync Card */}
+        <Card style={styles.actionCard} elevation={3}>
+          <Card.Content>
+            <View style={styles.iconContainer}>
+              <View style={[styles.iconCircle, { backgroundColor: '#f3e5f5' }]}>
+                <Title style={[styles.iconText, { color: '#7b1fa2' }]}>☁️</Title>
+              </View>
+            </View>
+            <Title style={styles.cardTitle}>NAS Central Sync</Title>
+            <Paragraph style={styles.cardDescription}>
+              Sync defects with central server on NAS
+            </Paragraph>
+            
+            <TextInput
+              label="NAS Server IP (e.g. 192.168.1.100)"
+              value={nasIp}
+              onChangeText={setNasIp}
+              mode="outlined"
+              dense
+              style={styles.ipInput}
+              keyboardType="numeric"
+            />
+
+            <Button
+              mode="contained"
+              icon="sync"
+              onPress={handleSync}
+              loading={syncing}
+              disabled={syncing}
+              style={[styles.actionButton, { backgroundColor: '#7b1fa2' }]}
+              contentStyle={styles.buttonContent}
+              labelStyle={styles.buttonLabel}
+            >
+              {syncing ? 'Syncing...' : 'Sync Now'}
+            </Button>
+          </Card.Content>
+        </Card>
+
         <Card style={styles.actionCard} elevation={3}>
           <Card.Content>
             <View style={styles.iconContainer}>
@@ -180,6 +256,10 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 20,
     lineHeight: 20,
+  },
+  ipInput: {
+    marginBottom: 15,
+    backgroundColor: '#ffffff',
   },
   actionButton: {
     borderRadius: 12,
