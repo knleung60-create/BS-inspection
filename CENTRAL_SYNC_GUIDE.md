@@ -46,6 +46,23 @@ This app now supports central defect storage through a small API service that ca
 
 For production use, run the service with a process manager such as PM2, Synology Task Scheduler, Docker, or the NAS vendor's service manager.
 
+## Synology / QuickConnect Notes
+
+QuickConnect URLs such as `https://quickconnect.to/YOUR_ID` normally open the Synology DSM login portal. The mobile app cannot sync to that login portal directly; it must reach the `nas-server` API endpoints:
+
+- `GET /health`
+- `GET /api/defects`
+- `POST /api/defects`
+- `DELETE /api/defects/:defectId`
+
+Recommended Synology options:
+
+1. **LAN-only site use**: set `EXPO_PUBLIC_SYNC_SERVER_URL` to `http://NAS_LAN_IP:3020`. This is simplest and works when all phones are on the same Wi-Fi/VPN as the NAS.
+2. **Reverse proxy**: in DSM, map an HTTPS hostname/path to `http://127.0.0.1:3020`, then set `EXPO_PUBLIC_SYNC_SERVER_URL` to that public HTTPS URL.
+3. **Port forwarding or VPN**: expose port `3020` only through a secure network path. Use a strong `SYNC_API_KEY`.
+
+Do not store NAS login passwords in this project. Only store the API key used by this defect sync service, and keep real `.env` files out of Git.
+
 ## App Setup
 
 1. Create `.env` from `.env.example` in the app root:
