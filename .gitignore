@@ -5,6 +5,7 @@ node_modules/
 
 # Expo
 .expo/
+.expo-export-check-android/
 dist/
 web-build/
 expo-env.d.ts
@@ -35,6 +36,7 @@ yarn-error.*
 .env*.local
 nas-server/data/
 nas-server/node_modules/
+deploy/
 
 # typescript
 *.tsbuildinfo

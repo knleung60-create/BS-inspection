@@ -28,6 +28,7 @@
         "WRITE_EXTERNAL_STORAGE",
         "READ_MEDIA_IMAGES"
       ],
+      "usesCleartextTraffic": true,
       "edgeToEdgeEnabled": true
     },
     "web": {
