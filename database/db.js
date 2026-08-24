@@ -22,6 +22,8 @@ const ensureSyncColumns = async () => {
   }
 };
 
+const toDbText = (value) => (value === null || value === undefined ? '' : String(value));
+
 export const initDatabase = async () => {
   try {
     // Open database with correct API
@@ -101,20 +103,20 @@ export const addDefect = async (defectData) => {
         remotePhotoUrl
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        defectId,
-        projectTitle,
-        serviceType,
-        category,
-        location,
-        remarks || '',
-        photoPath,
-        createdAt || now,
-        updatedAt || createdAt || now,
-        createdBy || '',
-        syncStatus || 'pending',
-        null,
-        syncedAt || null,
-        remotePhotoUrl || null,
+        toDbText(defectId),
+        toDbText(projectTitle),
+        toDbText(serviceType),
+        toDbText(category),
+        toDbText(location),
+        toDbText(remarks),
+        toDbText(photoPath),
+        toDbText(createdAt || now),
+        toDbText(updatedAt || createdAt || now),
+        toDbText(createdBy),
+        toDbText(syncStatus || 'pending'),
+        '',
+        toDbText(syncedAt),
+        toDbText(remotePhotoUrl),
       ]
     );
     
@@ -158,14 +160,18 @@ export const markDefectSynced = async (defectId, remotePhotoUrl = null) => {
   try {
     const database = await getDatabase();
     const syncedAt = new Date().toISOString();
+    const nextRemotePhotoUrl = toDbText(remotePhotoUrl);
     await database.runAsync(
       `UPDATE defects
        SET syncStatus = 'synced',
            syncError = NULL,
            syncedAt = ?,
-           remotePhotoUrl = COALESCE(?, remotePhotoUrl)
+           remotePhotoUrl = CASE
+             WHEN ? != '' THEN ?
+             ELSE remotePhotoUrl
+           END
        WHERE defectId = ?`,
-      [syncedAt, remotePhotoUrl, defectId]
+      [syncedAt, nextRemotePhotoUrl, nextRemotePhotoUrl, toDbText(defectId)]
     );
   } catch (error) {
     console.error('Error marking defect synced:', error);
@@ -180,7 +186,7 @@ export const markDefectSyncError = async (defectId, errorMessage) => {
        SET syncStatus = 'error',
            syncError = ?
        WHERE defectId = ?`,
-      [String(errorMessage || 'Sync failed'), defectId]
+      [toDbText(errorMessage || 'Sync failed'), toDbText(defectId)]
     );
   } catch (error) {
     console.error('Error marking defect sync error:', error);
@@ -197,7 +203,7 @@ export const upsertCentralDefects = async (centralDefects = []) => {
     const syncedAt = new Date().toISOString();
 
     for (const defect of centralDefects) {
-      const remotePhotoUrl = defect.photoUrl || defect.remotePhotoUrl || null;
+      const remotePhotoUrl = toDbText(defect.photoUrl || defect.remotePhotoUrl);
       const photoPath = remotePhotoUrl || defect.photoPath || '';
 
       await database.runAsync(
@@ -237,17 +243,17 @@ export const upsertCentralDefects = async (centralDefects = []) => {
           syncedAt = excluded.syncedAt,
           remotePhotoUrl = excluded.remotePhotoUrl`,
         [
-          defect.defectId,
-          defect.projectTitle,
-          defect.serviceType,
-          defect.category,
-          defect.location,
-          defect.remarks || '',
-          photoPath,
-          defect.createdAt,
-          defect.updatedAt || defect.createdAt,
-          defect.createdBy || '',
-          syncedAt,
+          toDbText(defect.defectId),
+          toDbText(defect.projectTitle),
+          toDbText(defect.serviceType),
+          toDbText(defect.category),
+          toDbText(defect.location),
+          toDbText(defect.remarks),
+          toDbText(photoPath),
+          toDbText(defect.createdAt),
+          toDbText(defect.updatedAt || defect.createdAt),
+          toDbText(defect.createdBy),
+          toDbText(syncedAt),
           remotePhotoUrl,
         ]
       );

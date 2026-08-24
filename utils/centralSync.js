@@ -73,7 +73,7 @@ export const pushDefectToCentral = async (defect) => {
     body: formData,
   });
 
-  await markDefectSynced(defect.defectId, result?.defect?.photoUrl || null);
+  await markDefectSynced(defect.defectId, result?.defect?.photoUrl || '');
   return result;
 };
 
