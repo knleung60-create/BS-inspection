@@ -6,7 +6,7 @@ This app now supports central defect storage through a small API service that ca
 
 1. The app keeps saving defects and photos on the device first.
 2. When `EXPO_PUBLIC_SYNC_SERVER_URL` is configured, the app sends pending defects to the NAS.
-3. The app also pulls all central records from the NAS when it starts, opens the defect log, or opens statistics.
+3. The app sends pending deletes to the NAS and pulls all central records plus delete markers when it starts, opens the defect log, or opens statistics.
 4. If the network is unavailable, records stay on the device and retry later.
 
 ## Files Added
@@ -68,8 +68,8 @@ Do not store NAS login passwords in this project. Only store the API key used by
 - Access: internet access from anywhere.
 - Hostname: `knleung60.synology.me`.
 - Authentication: all app users share the same sync API key.
-- Conflict rule: latest upload for the same `defectId` wins.
-- Delete rule: deleting a central defect also deletes the associated uploaded photo.
+- Conflict rule: latest `updatedAt` value for the same `defectId` wins.
+- Delete rule: deleting a central defect also deletes the associated uploaded photo and returns a delete marker to other app users.
 - User IDs: not required at this stage.
 
 ## App Setup
@@ -123,4 +123,6 @@ This folder was not a Git repository when checked. To sync this project to GitHu
 4. Open `nas-server/data/defects.json` on the NAS and confirm the record exists.
 5. Open the app on another device and go to Defect Log.
 6. Confirm the defect and photo appear.
-7. Export a PDF and confirm NAS-hosted photos appear in the report.
+7. Delete the defect from one device.
+8. Open Defect Log on another device and confirm the same defect disappears after sync.
+9. Export a PDF and confirm NAS-hosted photos appear in the report.

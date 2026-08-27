@@ -1,7 +1,11 @@
 import {
   getPendingSyncDefects,
+  getPendingDeletedDefects,
   markDefectSynced,
   markDefectSyncError,
+  markDeletedDefectSynced,
+  markDeletedDefectSyncError,
+  applyCentralDeletedDefects,
   upsertCentralDefects,
 } from '../database/db';
 import { CENTRAL_SYNC_CONFIG, isCentralSyncEnabled } from '../constants/syncConfig';
@@ -107,8 +111,34 @@ export const pullDefectsFromCentral = async () => {
 
   const result = await requestCentral('/api/defects');
   const defects = result?.defects || [];
+  const deletedDefects = result?.deletedDefects || [];
+  await applyCentralDeletedDefects(deletedDefects);
   const pulled = await upsertCentralDefects(defects);
-  return { pulled };
+  return { pulled, deleted: deletedDefects.length };
+};
+
+export const pushPendingDeletedDefectsToCentral = async () => {
+  if (!isCentralSyncEnabled()) {
+    return { deletedPushed: 0, deleteFailed: 0 };
+  }
+
+  const pendingDeletedDefects = await getPendingDeletedDefects();
+  let deletedPushed = 0;
+  let deleteFailed = 0;
+
+  for (const deletedDefect of pendingDeletedDefects) {
+    try {
+      await deleteCentralDefect(deletedDefect.defectId, deletedDefect.deletedAt);
+      await markDeletedDefectSynced(deletedDefect.defectId);
+      deletedPushed += 1;
+    } catch (error) {
+      deleteFailed += 1;
+      await markDeletedDefectSyncError(deletedDefect.defectId, error.message);
+      console.error('Error syncing deleted defect to central:', deletedDefect.defectId, error);
+    }
+  }
+
+  return { deletedPushed, deleteFailed };
 };
 
 export const syncWithCentral = async () => {
@@ -117,21 +147,23 @@ export const syncWithCentral = async () => {
   }
 
   const pushResult = await pushPendingDefectsToCentral();
+  const deleteResult = await pushPendingDeletedDefectsToCentral();
   const pullResult = await pullDefectsFromCentral();
 
   return {
     enabled: true,
     ...pushResult,
+    ...deleteResult,
     ...pullResult,
   };
 };
 
-export const deleteCentralDefect = async (defectId) => {
+export const deleteCentralDefect = async (defectId, deletedAt = new Date().toISOString()) => {
   if (!isCentralSyncEnabled()) {
     return null;
   }
 
-  return requestCentral(`/api/defects/${encodeURIComponent(defectId)}`, {
+  return requestCentral(`/api/defects/${encodeURIComponent(defectId)}?deletedAt=${encodeURIComponent(deletedAt)}`, {
     method: 'DELETE',
   });
 };

@@ -262,10 +262,11 @@ export default function DefectLogScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteDefect(id);
+              const deletedAt = new Date().toISOString();
+              await deleteDefect(id, defectId, deletedAt);
               if (isCentralSyncEnabled()) {
                 try {
-                  await deleteCentralDefect(defectId);
+                  await deleteCentralDefect(defectId, deletedAt);
                 } catch (syncError) {
                   console.error('Failed to delete defect from central storage:', syncError);
                 }

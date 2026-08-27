@@ -16,6 +16,7 @@
 - `knleung60.synology.me` resolves to the NAS public IP.
 - Defect API can create, list, and delete a temporary test record.
 - Android export check completed successfully with the NAS sync environment loaded.
+- Local sync conflict/delete tests passed for latest-write-wins and deleted-defect propagation.
 - Local Git branch is `main`.
 
 ## Local-Only Files
@@ -34,11 +35,11 @@ These are intentionally not committed:
 - Current access mode: internet access from anywhere.
 - Current authentication model: all users share one API key.
 - Current conflict rule: latest write wins when the same `defectId` is uploaded again.
-- Delete rule: deleting a central defect deletes its associated uploaded photo.
+- Delete rule: deleting a central defect deletes its associated uploaded photo and records a delete marker so other devices remove the same defect during sync.
 
 ## Remaining Hardening
 
-- Configure DSM reverse proxy and HTTPS certificate for the sync API.
+- Finish DSM certificate assignment for the reverse proxy. A Let's Encrypt certificate for `knleung60.synology.me` exists, but the reverse proxy is still serving the DSM self-signed certificate.
 - After HTTPS is active, change the app URL to `https://knleung60.synology.me/...` and remove reliance on Android cleartext traffic.
 
 ## GitHub

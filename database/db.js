@@ -46,6 +46,16 @@ export const initDatabase = async () => {
     `);
 
     await ensureSyncColumns();
+
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS deleted_defects (
+        defectId TEXT PRIMARY KEY NOT NULL,
+        deletedAt TEXT NOT NULL,
+        syncStatus TEXT DEFAULT 'pending',
+        syncError TEXT,
+        syncedAt TEXT
+      );
+    `);
     
     console.log('Database initialized successfully');
     return db;
@@ -203,6 +213,16 @@ export const upsertCentralDefects = async (centralDefects = []) => {
     const syncedAt = new Date().toISOString();
 
     for (const defect of centralDefects) {
+      const deleted = await database.getFirstAsync(
+        'SELECT deletedAt FROM deleted_defects WHERE defectId = ?',
+        [toDbText(defect.defectId)]
+      );
+      const centralUpdatedAt = toDbText(defect.updatedAt || defect.createdAt);
+
+      if (deleted && new Date(deleted.deletedAt).getTime() >= new Date(centralUpdatedAt).getTime()) {
+        continue;
+      }
+
       const remotePhotoUrl = toDbText(defect.photoUrl || defect.remotePhotoUrl);
       const photoPath = remotePhotoUrl || defect.photoPath || '';
 
@@ -241,7 +261,9 @@ export const upsertCentralDefects = async (centralDefects = []) => {
           syncStatus = 'synced',
           syncError = NULL,
           syncedAt = excluded.syncedAt,
-          remotePhotoUrl = excluded.remotePhotoUrl`,
+          remotePhotoUrl = excluded.remotePhotoUrl
+        WHERE defects.updatedAt IS NULL
+           OR excluded.updatedAt >= defects.updatedAt`,
         [
           toDbText(defect.defectId),
           toDbText(defect.projectTitle),
@@ -263,6 +285,103 @@ export const upsertCentralDefects = async (centralDefects = []) => {
   } catch (error) {
     console.error('Error upserting central defects:', error);
     return 0;
+  }
+};
+
+export const applyCentralDeletedDefects = async (deletedDefects = []) => {
+  if (!deletedDefects.length) {
+    return 0;
+  }
+
+  try {
+    const database = await getDatabase();
+    let applied = 0;
+
+    for (const deleted of deletedDefects) {
+      const defectId = toDbText(deleted.defectId);
+      const deletedAt = toDbText(deleted.deletedAt);
+
+      if (!defectId || !deletedAt) {
+        continue;
+      }
+
+      const localDefect = await database.getFirstAsync(
+        'SELECT updatedAt, syncStatus FROM defects WHERE defectId = ?',
+        [defectId]
+      );
+
+      if (
+        localDefect
+        && localDefect.syncStatus !== 'synced'
+        && localDefect.updatedAt
+        && new Date(localDefect.updatedAt).getTime() > new Date(deletedAt).getTime()
+      ) {
+        continue;
+      }
+
+      await database.runAsync('DELETE FROM defects WHERE defectId = ?', [defectId]);
+      await database.runAsync(
+        `INSERT INTO deleted_defects (defectId, deletedAt, syncStatus, syncError, syncedAt)
+         VALUES (?, ?, 'synced', NULL, ?)
+         ON CONFLICT(defectId) DO UPDATE SET
+           deletedAt = CASE WHEN excluded.deletedAt >= deleted_defects.deletedAt THEN excluded.deletedAt ELSE deleted_defects.deletedAt END,
+           syncStatus = 'synced',
+           syncError = NULL,
+           syncedAt = excluded.syncedAt`,
+        [defectId, deletedAt, new Date().toISOString()]
+      );
+      applied += 1;
+    }
+
+    return applied;
+  } catch (error) {
+    console.error('Error applying central deleted defects:', error);
+    return 0;
+  }
+};
+
+export const getPendingDeletedDefects = async () => {
+  try {
+    const database = await getDatabase();
+    return database.getAllAsync(
+      `SELECT * FROM deleted_defects
+       WHERE syncStatus IS NULL OR syncStatus != 'synced'
+       ORDER BY deletedAt ASC`
+    );
+  } catch (error) {
+    console.error('Error getting pending deleted defects:', error);
+    return [];
+  }
+};
+
+export const markDeletedDefectSynced = async (defectId) => {
+  try {
+    const database = await getDatabase();
+    await database.runAsync(
+      `UPDATE deleted_defects
+       SET syncStatus = 'synced',
+           syncError = NULL,
+           syncedAt = ?
+       WHERE defectId = ?`,
+      [new Date().toISOString(), toDbText(defectId)]
+    );
+  } catch (error) {
+    console.error('Error marking deleted defect synced:', error);
+  }
+};
+
+export const markDeletedDefectSyncError = async (defectId, errorMessage) => {
+  try {
+    const database = await getDatabase();
+    await database.runAsync(
+      `UPDATE deleted_defects
+       SET syncStatus = 'error',
+           syncError = ?
+       WHERE defectId = ?`,
+      [toDbText(errorMessage || 'Delete sync failed'), toDbText(defectId)]
+    );
+  } catch (error) {
+    console.error('Error marking deleted defect sync error:', error);
   }
 };
 
@@ -365,10 +484,27 @@ export const getDefectStatistics = async (projectTitle = null) => {
   }
 };
 
-export const deleteDefect = async (id) => {
+export const deleteDefect = async (id, defectId = null, deletedAt = null) => {
   try {
     const database = await getDatabase();
+    const nextDeletedAt = deletedAt || new Date().toISOString();
+    const row = defectId
+      ? { defectId }
+      : await database.getFirstAsync('SELECT defectId FROM defects WHERE id = ?', [id]);
+
     const result = await database.runAsync('DELETE FROM defects WHERE id = ?', [id]);
+    if (row?.defectId) {
+      await database.runAsync(
+        `INSERT INTO deleted_defects (defectId, deletedAt, syncStatus, syncError, syncedAt)
+         VALUES (?, ?, 'pending', NULL, NULL)
+         ON CONFLICT(defectId) DO UPDATE SET
+           deletedAt = excluded.deletedAt,
+           syncStatus = 'pending',
+           syncError = NULL,
+           syncedAt = NULL`,
+        [toDbText(row.defectId), nextDeletedAt]
+      );
+    }
     console.log('Defect deleted:', id);
     return result;
   } catch (error) {
