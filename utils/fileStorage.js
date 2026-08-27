@@ -1,28 +1,36 @@
-import * as FileSystem from 'expo-file-system/legacy';
+import { Directory, File, Paths } from 'expo-file-system';
 
-const DEFECT_PHOTO_DIRECTORY = `${FileSystem.documentDirectory}defect_photos/`;
+const DEFECT_PHOTO_DIRECTORY_NAME = 'defect_photos';
+const DEFECT_PHOTO_DIRECTORY = new Directory(Paths.document, DEFECT_PHOTO_DIRECTORY_NAME);
 
-export const ensureDirectoryExists = async (directoryUri) => {
-  try {
-    await FileSystem.readDirectoryAsync(directoryUri);
-  } catch (error) {
-    await FileSystem.makeDirectoryAsync(directoryUri, { intermediates: true });
+export const ensureDefectPhotoDirectoryExists = () => {
+  if (!DEFECT_PHOTO_DIRECTORY.exists) {
+    DEFECT_PHOTO_DIRECTORY.create({ intermediates: true, idempotent: true });
   }
 };
 
 export const saveDefectPhoto = async (uri, defectId) => {
-  await ensureDirectoryExists(DEFECT_PHOTO_DIRECTORY);
+  ensureDefectPhotoDirectoryExists();
 
   const safeDefectId = String(defectId || Date.now()).replace(/[^a-zA-Z0-9_-]/g, '_');
   const fileName = `${safeDefectId}_${Date.now()}.jpg`;
-  const newPath = `${DEFECT_PHOTO_DIRECTORY}${fileName}`;
+  const sourceFile = new File(uri);
+  const destinationFile = new File(DEFECT_PHOTO_DIRECTORY, fileName);
 
-  await FileSystem.copyAsync({
-    from: uri,
-    to: newPath,
-  });
+  sourceFile.copy(destinationFile);
 
-  return newPath;
+  return destinationFile.uri;
 };
 
-export { FileSystem };
+export const isDefectPhotoUri = (uri = '') => uri.includes(`/${DEFECT_PHOTO_DIRECTORY_NAME}/`);
+
+export const deleteLocalFileIfExists = async (uri) => {
+  if (!uri) {
+    return;
+  }
+
+  const file = new File(uri);
+  if (file.exists) {
+    file.delete();
+  }
+};

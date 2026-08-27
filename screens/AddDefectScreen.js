@@ -7,7 +7,7 @@ import { SERVICE_TYPES, DEFECT_CATEGORIES, SERVICE_TYPE_NAMES } from '../constan
 import { addDefect, generateDefectId, getAllProjects } from '../database/db';
 import { saveCurrentProject, getCurrentProject } from '../utils/storage';
 import { isCentralSyncEnabled, pushDefectToCentral } from '../utils/centralSync';
-import { saveDefectPhoto } from '../utils/fileStorage';
+import { deleteLocalFileIfExists, isDefectPhotoUri, saveDefectPhoto } from '../utils/fileStorage';
 
 export default function AddDefectScreen({ navigation }) {
   const [projectTitle, setProjectTitle] = useState('');
@@ -70,17 +70,28 @@ export default function AddDefectScreen({ navigation }) {
 
   const handlePhotoSelected = async (uri) => {
     const optimizedUri = await optimizeImage(uri);
-    setTempPhotoUri(optimizedUri);
+    const savedPreviewUri = await saveDefectPhoto(optimizedUri, 'draft');
+    setTempPhotoUri(savedPreviewUri);
     setShowPhotoPreview(true);
   };
 
   const confirmPhoto = () => {
+    if (photoUri && photoUri !== tempPhotoUri && isDefectPhotoUri(photoUri)) {
+      deleteLocalFileIfExists(photoUri).catch((error) => {
+        console.error('Error deleting replaced photo:', error);
+      });
+    }
     setPhotoUri(tempPhotoUri);
     setShowPhotoPreview(false);
     setTempPhotoUri(null);
   };
 
   const cancelPhoto = () => {
+    if (tempPhotoUri && isDefectPhotoUri(tempPhotoUri)) {
+      deleteLocalFileIfExists(tempPhotoUri).catch((error) => {
+        console.error('Error deleting canceled photo:', error);
+      });
+    }
     setShowPhotoPreview(false);
     setTempPhotoUri(null);
   };
@@ -95,6 +106,11 @@ export default function AddDefectScreen({ navigation }) {
           text: 'Remove',
           style: 'destructive',
           onPress: () => {
+            if (photoUri && isDefectPhotoUri(photoUri)) {
+              deleteLocalFileIfExists(photoUri).catch((error) => {
+                console.error('Error deleting removed photo:', error);
+              });
+            }
             setPhotoUri(null);
           },
         },
@@ -181,10 +197,8 @@ export default function AddDefectScreen({ navigation }) {
       const defectId = generateDefectId();
       console.log('Generated defect ID:', defectId);
 
-      // Save photo to permanent location
-      console.log('Saving photo:', photoUri);
-      const savedPhotoPath = await saveDefectPhoto(photoUri, defectId);
-      console.log('Photo saved to:', savedPhotoPath);
+      const savedPhotoPath = photoUri;
+      console.log('Using saved photo:', savedPhotoPath);
       
       // Save current project for next time
       await saveCurrentProject(projectTitle.trim());
