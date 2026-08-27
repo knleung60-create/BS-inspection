@@ -57,8 +57,8 @@ QuickConnect URLs such as `https://quickconnect.to/YOUR_ID` normally open the Sy
 
 Recommended Synology options:
 
-1. **Internet access from anywhere**: set `EXPO_PUBLIC_SYNC_SERVER_URL` to `http://knleung60.synology.me:3020`.
-2. **Recommended hardening**: in DSM, map an HTTPS hostname/path to `http://127.0.0.1:3020`, then set `EXPO_PUBLIC_SYNC_SERVER_URL` to that public HTTPS URL.
+1. **Internet access from anywhere**: set `EXPO_PUBLIC_SYNC_SERVER_URL` to `https://knleung60.synology.me`.
+2. **Recommended hardening**: in DSM, map the HTTPS hostname to `http://127.0.0.1:3020`, then keep the app on the public HTTPS URL.
 3. **Firewall and router**: expose only the required sync route. Use a strong `SYNC_API_KEY`.
 
 Do not store NAS login passwords in this project. Only store the API key used by this defect sync service, and keep real `.env` files out of Git.
@@ -76,7 +76,7 @@ Do not store NAS login passwords in this project. Only store the API key used by
 
 1. Create `.env` from `.env.example` in the app root:
    ```bash
-   EXPO_PUBLIC_SYNC_SERVER_URL=http://YOUR_NAS_IP:3020
+   EXPO_PUBLIC_SYNC_SERVER_URL=https://knleung60.synology.me
    EXPO_PUBLIC_SYNC_API_KEY=change-this-key
    EXPO_PUBLIC_SYNC_TIMEOUT_MS=15000
    ```
