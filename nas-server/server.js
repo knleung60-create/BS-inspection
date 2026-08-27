@@ -3,10 +3,38 @@ const path = require('path');
 const express = require('express');
 const multer = require('multer');
 
+const loadLocalEnv = () => {
+  const envPath = path.join(__dirname, '.env');
+  if (!fs.existsSync(envPath)) {
+    return;
+  }
+
+  const lines = fs.readFileSync(envPath, 'utf8').split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) {
+      continue;
+    }
+
+    const separatorIndex = trimmed.indexOf('=');
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const value = trimmed.slice(separatorIndex + 1).trim().replace(/^['"]|['"]$/g, '');
+    if (!process.env[key]) {
+      process.env[key] = value;
+    }
+  }
+};
+
+loadLocalEnv();
+
 const app = express();
 
 const PORT = Number(process.env.PORT || 3020);
-const API_KEY = process.env.SYNC_API_KEY || '';
+const API_KEY = process.env.SYNC_API_KEY || process.env.EXPO_PUBLIC_SYNC_API_KEY || '';
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, 'data');
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
