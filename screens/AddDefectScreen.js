@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, Image, Alert, Modal, ActivityIndicator } from 'react-native';
 import { Button, TextInput, Card, Title, Menu, Divider, Text } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { SERVICE_TYPES, DEFECT_CATEGORIES, SERVICE_TYPE_NAMES } from '../constants/defectData';
 import { addDefect, generateDefectId, getAllProjects } from '../database/db';
 import { saveCurrentProject, getCurrentProject } from '../utils/storage';
 import { isCentralSyncEnabled, pushDefectToCentral } from '../utils/centralSync';
+import { saveDefectPhoto } from '../utils/fileStorage';
 
 export default function AddDefectScreen({ navigation }) {
   const [projectTitle, setProjectTitle] = useState('');
@@ -168,28 +168,6 @@ export default function AddDefectScreen({ navigation }) {
     return true;
   };
 
-  const savePhoto = async (uri) => {
-    const fileName = `defect_${Date.now()}.jpg`;
-    const directory = `${FileSystem.documentDirectory}defect_photos/`;
-    
-    // Create directory if it doesn't exist using new API
-    try {
-      // Check if directory exists by trying to read it
-      await FileSystem.readDirectoryAsync(directory);
-    } catch (error) {
-      // Directory doesn't exist, create it
-      await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
-    }
-    
-    const newPath = directory + fileName;
-    await FileSystem.copyAsync({
-      from: uri,
-      to: newPath,
-    });
-    
-    return newPath;
-  };
-
   const handleSubmit = async () => {
     if (!validateForm()) {
       return;
@@ -199,14 +177,14 @@ export default function AddDefectScreen({ navigation }) {
     try {
       console.log('Starting defect submission...');
       
-      // Save photo to permanent location
-      console.log('Saving photo:', photoUri);
-      const savedPhotoPath = await savePhoto(photoUri);
-      console.log('Photo saved to:', savedPhotoPath);
-      
       // Generate defect ID
       const defectId = generateDefectId();
       console.log('Generated defect ID:', defectId);
+
+      // Save photo to permanent location
+      console.log('Saving photo:', photoUri);
+      const savedPhotoPath = await saveDefectPhoto(photoUri, defectId);
+      console.log('Photo saved to:', savedPhotoPath);
       
       // Save current project for next time
       await saveCurrentProject(projectTitle.trim());
