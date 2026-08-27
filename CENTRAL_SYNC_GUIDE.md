@@ -57,11 +57,20 @@ QuickConnect URLs such as `https://quickconnect.to/YOUR_ID` normally open the Sy
 
 Recommended Synology options:
 
-1. **LAN-only site use**: set `EXPO_PUBLIC_SYNC_SERVER_URL` to `http://NAS_LAN_IP:3020`. This is simplest and works when all phones are on the same Wi-Fi/VPN as the NAS.
-2. **Reverse proxy**: in DSM, map an HTTPS hostname/path to `http://127.0.0.1:3020`, then set `EXPO_PUBLIC_SYNC_SERVER_URL` to that public HTTPS URL.
-3. **Port forwarding or VPN**: expose port `3020` only through a secure network path. Use a strong `SYNC_API_KEY`.
+1. **Internet access from anywhere**: set `EXPO_PUBLIC_SYNC_SERVER_URL` to `http://knleung60.synology.me:3020`.
+2. **Recommended hardening**: in DSM, map an HTTPS hostname/path to `http://127.0.0.1:3020`, then set `EXPO_PUBLIC_SYNC_SERVER_URL` to that public HTTPS URL.
+3. **Firewall and router**: expose only the required sync route. Use a strong `SYNC_API_KEY`.
 
 Do not store NAS login passwords in this project. Only store the API key used by this defect sync service, and keep real `.env` files out of Git.
+
+## Current Operating Decisions
+
+- Access: internet access from anywhere.
+- Hostname: `knleung60.synology.me`.
+- Authentication: all app users share the same sync API key.
+- Conflict rule: latest upload for the same `defectId` wins.
+- Delete rule: deleting a central defect also deletes the associated uploaded photo.
+- User IDs: not required at this stage.
 
 ## App Setup
 

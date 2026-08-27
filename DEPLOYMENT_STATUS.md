@@ -6,12 +6,14 @@
 - Deployment folder: `/home/building-services-sync`
 - Data folder: `/home/building-services-defects`
 - Service port: `3020`
-- Health check: `http://123.203.194.209:3020/health`
-- API base URL for the app: `http://123.203.194.209:3020`
+- DDNS hostname: `knleung60.synology.me`
+- Health check: `http://knleung60.synology.me:3020/health`
+- API base URL for the app: `http://knleung60.synology.me:3020`
 
 ## Verified
 
 - NAS server health endpoint returns `{"ok":true}`.
+- `knleung60.synology.me` resolves to the NAS public IP.
 - Defect API can create, list, and delete a temporary test record.
 - Android export check completed successfully with the NAS sync environment loaded.
 - Local Git branch is `main`.
@@ -27,11 +29,20 @@ These are intentionally not committed:
 - `nas-server/data/`
 - `.expo-export-check-android/`
 
-## GitHub Remaining Step
+## Sync Rules
 
-Add a GitHub remote and push:
+- Current access mode: internet access from anywhere.
+- Current authentication model: all users share one API key.
+- Current conflict rule: latest write wins when the same `defectId` is uploaded again.
+- Delete rule: deleting a central defect deletes its associated uploaded photo.
 
-```bash
-git remote add origin https://github.com/YOUR_ORG/YOUR_REPO.git
-git push -u origin main
-```
+## Remaining Hardening
+
+- Configure DSM reverse proxy and HTTPS certificate for the sync API.
+- After HTTPS is active, change the app URL to `https://knleung60.synology.me/...` and remove reliance on Android cleartext traffic.
+
+## GitHub
+
+The deployment branch is:
+
+`codex-nas-sync-deployment`
