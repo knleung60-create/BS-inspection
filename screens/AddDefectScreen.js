@@ -347,32 +347,15 @@ export default function AddDefectScreen({ navigation }) {
 
             {/* Category Selector */}
             {serviceType && (
-              <Menu
-                visible={categoryMenuVisible}
-                onDismiss={() => setCategoryMenuVisible(false)}
-                anchor={
-                  <Button
-                    mode="outlined"
-                    onPress={() => setCategoryMenuVisible(true)}
-                    style={styles.input}
-                    contentStyle={styles.menuButton}
-                    icon="chevron-down"
-                  >
-                    {category || 'Select Defect Category'}
-                  </Button>
-                }
+              <Button
+                mode="outlined"
+                onPress={() => setCategoryMenuVisible(true)}
+                style={styles.input}
+                contentStyle={styles.menuButton}
+                icon="chevron-down"
               >
-                {DEFECT_CATEGORIES[serviceType].map((cat, index) => (
-                  <Menu.Item
-                    key={index}
-                    onPress={() => {
-                      setCategory(cat);
-                      setCategoryMenuVisible(false);
-                    }}
-                    title={cat}
-                  />
-                ))}
-              </Menu>
+                {category || 'Select Defect Category'}
+              </Button>
             )}
 
             {/* Location Input */}
@@ -454,6 +437,47 @@ export default function AddDefectScreen({ navigation }) {
           </Card.Content>
         </Card>
       </View>
+
+      {/* Category Selector Modal */}
+      <Modal
+        visible={categoryMenuVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setCategoryMenuVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.categoryModalContent}>
+            <Card style={styles.previewCard}>
+              <Card.Content>
+                <Title style={styles.previewTitle}>Select Defect Category</Title>
+                <ScrollView style={styles.categoryList}>
+                  {(DEFECT_CATEGORIES[serviceType] || []).map((cat, index) => (
+                    <Button
+                      key={index}
+                      mode={category === cat ? 'contained' : 'outlined'}
+                      onPress={() => {
+                        setCategory(cat);
+                        setCategoryMenuVisible(false);
+                      }}
+                      style={styles.categoryOption}
+                      contentStyle={styles.categoryOptionContent}
+                    >
+                      {cat}
+                    </Button>
+                  ))}
+                </ScrollView>
+                <Button
+                  mode="text"
+                  onPress={() => setCategoryMenuVisible(false)}
+                  style={styles.previewButton}
+                >
+                  Cancel
+                </Button>
+              </Card.Content>
+            </Card>
+          </View>
+        </View>
+      </Modal>
 
       {/* Photo Preview Modal */}
       <Modal
@@ -574,6 +598,22 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '90%',
     maxHeight: '80%',
+  },
+  categoryModalContent: {
+    width: '92%',
+    maxHeight: '80%',
+  },
+  categoryList: {
+    maxHeight: 420,
+    marginBottom: 10,
+  },
+  categoryOption: {
+    marginBottom: 10,
+    borderRadius: 8,
+  },
+  categoryOptionContent: {
+    minHeight: 48,
+    paddingVertical: 6,
   },
   previewCard: {
     elevation: 8,
