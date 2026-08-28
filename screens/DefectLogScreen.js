@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Image, Alert, ActivityIndicator } from 'react-native';
-import { Card, Title, Paragraph, Button, Menu, Chip, Divider, Text, IconButton, Searchbar } from 'react-native-paper';
+import { Button, Card, Chip, Dialog, Divider, IconButton, Menu, Portal, Searchbar, Text, TextInput, Title } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { getAllDefects, getDefectsByServiceType, deleteDefect, getAllProjects, getDefectsByProject, getDefectsByProjectAndServiceType } from '../database/db';
 import { SERVICE_TYPES, SERVICE_TYPE_NAMES } from '../constants/defectData';
@@ -26,6 +26,8 @@ export default function DefectLogScreen() {
   const [selectedDefects, setSelectedDefects] = useState(new Set());
   const [syncing, setSyncing] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
+  const [siteMemoDialogVisible, setSiteMemoDialogVisible] = useState(false);
+  const [siteMemoNumber, setSiteMemoNumber] = useState('');
 
   const loadDefects = async () => {
     try {
@@ -184,19 +186,39 @@ export default function DefectLogScreen() {
     setSelectedDefects(new Set());
   };
 
+  const getDefectsForExport = () => {
+    if (selectionMode && selectedDefects.size > 0) {
+      return displayedDefects.filter(d => selectedDefects.has(d.id));
+    }
+
+    return displayedDefects;
+  };
+
+  const openSiteMemoDialog = () => {
+    const defectsToExport = getDefectsForExport();
+
+    if (defectsToExport.length === 0) {
+      Alert.alert('No Defects', 'Please select defects to generate site memo');
+      return;
+    }
+
+    setSiteMemoNumber('');
+    setSiteMemoDialogVisible(true);
+  };
+
   const handleExportSiteMemo = async () => {
+    const memoNumber = siteMemoNumber.trim();
+    if (!memoNumber) {
+      Alert.alert('Site Memo No Required', 'Please input the site memo number.');
+      return;
+    }
+
     try {
       setExportingSiteMemo(true);
+      setSiteMemoDialogVisible(false);
       
       // Determine which defects to export
-      let defectsToExport;
-      if (selectionMode && selectedDefects.size > 0) {
-        // Export only selected defects
-        defectsToExport = displayedDefects.filter(d => selectedDefects.has(d.id));
-      } else {
-        // Export all filtered/searched defects
-        defectsToExport = displayedDefects;
-      }
+      const defectsToExport = getDefectsForExport();
       
       if (defectsToExport.length === 0) {
         Alert.alert('No Defects', 'Please select defects to generate site memo');
@@ -207,7 +229,7 @@ export default function DefectLogScreen() {
       // Get project title
       const projectTitle = selectedProject === 'All' ? defectsToExport[0]?.projectTitle : selectedProject;
       
-      const pdfPath = await generateSiteMemo(defectsToExport, projectTitle);
+      const pdfPath = await generateSiteMemo(defectsToExport, projectTitle, memoNumber);
       
       Alert.alert(
         'Site Memo Generated',
@@ -444,7 +466,7 @@ export default function DefectLogScreen() {
               mode="contained"
               iconColor="#2e7d32"
               size={24}
-              onPress={handleExportSiteMemo}
+              onPress={openSiteMemoDialog}
               disabled={exportingSiteMemo || displayedDefects.length === 0}
             />
             <IconButton
@@ -475,6 +497,34 @@ export default function DefectLogScreen() {
           elevation={2}
         />
       </View>
+
+      <Portal>
+        <Dialog visible={siteMemoDialogVisible} onDismiss={() => setSiteMemoDialogVisible(false)}>
+          <Dialog.Title>Site Memo No</Dialog.Title>
+          <Dialog.Content>
+            <TextInput
+              mode="outlined"
+              label="Site Memo number"
+              value={siteMemoNumber}
+              onChangeText={setSiteMemoNumber}
+              placeholder="e.g. 001"
+              autoCapitalize="characters"
+              disabled={exportingSiteMemo}
+            />
+            <Text style={styles.siteMemoHint}>
+              Prefix YTIL46/BSI/M/ will be added automatically if not entered.
+            </Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setSiteMemoDialogVisible(false)} disabled={exportingSiteMemo}>
+              Cancel
+            </Button>
+            <Button onPress={handleExportSiteMemo} loading={exportingSiteMemo} disabled={exportingSiteMemo}>
+              Generate
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
 
       <ScrollView style={styles.scrollView}>
         {displayedDefects.length === 0 ? (
@@ -620,6 +670,11 @@ const styles = StyleSheet.create({
   syncStatusText: {
     color: '#00695c',
     fontSize: 13,
+  },
+  siteMemoHint: {
+    color: '#666',
+    fontSize: 12,
+    marginTop: 8,
   },
   filterRow: {
     flexDirection: 'row',
