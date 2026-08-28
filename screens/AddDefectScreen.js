@@ -240,13 +240,7 @@ export default function AddDefectScreen({ navigation }) {
           {
             text: 'OK',
             onPress: () => {
-              // Reset form but keep project title
-              setServiceType('');
-              setCategory('');
-              setLocation('');
-              setRemarks('');
-              setPhotoUri(null);
-              navigation.goBack();
+              loadExistingProjects();
             },
           },
         ]
