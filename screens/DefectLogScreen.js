@@ -24,16 +24,25 @@ export default function DefectLogScreen() {
   const [displayedDefects, setDisplayedDefects] = useState([]);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedDefects, setSelectedDefects] = useState(new Set());
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
 
   const loadDefects = async () => {
     try {
       setLoading(true);
       if (isCentralSyncEnabled()) {
         try {
-          await syncWithCentral();
+          setSyncing(true);
+          const result = await syncWithCentral();
+          setSyncMessage(`Synced: ${result.pushed || 0} up, ${result.pulled || 0} down`);
         } catch (syncError) {
           console.error('Central sync failed while loading defects:', syncError);
+          setSyncMessage('Central sync failed. Showing device records.');
+        } finally {
+          setSyncing(false);
         }
+      } else {
+        setSyncMessage('Central sync is not configured.');
       }
 
       const data = await getAllDefects();
@@ -65,6 +74,31 @@ export default function DefectLogScreen() {
       loadDefects();
     }, [])
   );
+
+  const handleManualSync = async () => {
+    if (!isCentralSyncEnabled()) {
+      Alert.alert('Sync Not Configured', 'Central sync needs the shared API key in the app build.');
+      return;
+    }
+
+    try {
+      setSyncing(true);
+      const result = await syncWithCentral();
+      const data = await getAllDefects();
+      const projectList = await getAllProjects();
+      setDefects(data);
+      setProjects(projectList);
+      setFilteredDefects(data);
+      applySearch(data, searchQuery);
+      setSyncMessage(`Synced: ${result.pushed || 0} up, ${result.pulled || 0} down`);
+    } catch (error) {
+      console.error('Manual central sync failed:', error);
+      setSyncMessage('Central sync failed. Please check internet access.');
+      Alert.alert('Sync Failed', 'Could not synchronize with central storage.');
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const applyFilters = async (project, serviceType) => {
     try {
@@ -390,6 +424,14 @@ export default function DefectLogScreen() {
           )}
           <View style={styles.actionButtons}>
             <IconButton
+              icon="sync"
+              mode="contained"
+              iconColor="#00695c"
+              size={24}
+              onPress={handleManualSync}
+              disabled={syncing}
+            />
+            <IconButton
               icon={selectionMode ? "close" : "checkbox-multiple-marked"}
               mode="contained"
               iconColor={selectionMode ? "#666" : "#1976d2"}
@@ -418,6 +460,11 @@ export default function DefectLogScreen() {
       </View>
 
       {/* Search Bar */}
+      {!!syncMessage && (
+        <View style={styles.syncStatusContainer}>
+          <Text style={styles.syncStatusText}>{syncing ? 'Synchronizing...' : syncMessage}</Text>
+        </View>
+      )}
       <View style={styles.searchContainer}>
         <Searchbar
           placeholder="Search by location, ID, category..."
@@ -565,6 +612,15 @@ const styles = StyleSheet.create({
     elevation: 0,
     backgroundColor: '#f5f5f5',
   },
+  syncStatusContainer: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+  },
+  syncStatusText: {
+    color: '#00695c',
+    fontSize: 13,
+  },
   filterRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -590,12 +646,6 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: 15,
     elevation: 4,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 10,
   },
   selectionInfo: {
     flex: 1,

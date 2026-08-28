@@ -4,7 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Provider as PaperProvider } from 'react-native-paper';
 import { theme } from './constants/theme';
 import { StatusBar } from 'expo-status-bar';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { AppState, View, ActivityIndicator, StyleSheet } from 'react-native';
 
 import HomeScreen from './screens/HomeScreen';
 import AddDefectScreen from './screens/AddDefectScreen';
@@ -19,13 +19,26 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
+    let syncInterval = null;
+    let appStateSubscription = null;
+
+    const runBackgroundSync = () => {
+      syncWithCentral().catch((error) => {
+        console.log('Central sync skipped or failed:', error.message);
+      });
+    };
+
     const initialize = async () => {
       try {
         console.log('Initializing app...');
         await initDatabase();
         console.log('Database initialized');
-        syncWithCentral().catch((error) => {
-          console.log('Central sync skipped or failed during startup:', error.message);
+        runBackgroundSync();
+        syncInterval = setInterval(runBackgroundSync, 60000);
+        appStateSubscription = AppState.addEventListener('change', (nextAppState) => {
+          if (nextAppState === 'active') {
+            runBackgroundSync();
+          }
         });
         setIsReady(true);
       } catch (error) {
@@ -37,6 +50,15 @@ export default function App() {
     };
 
     initialize();
+
+    return () => {
+      if (syncInterval) {
+        clearInterval(syncInterval);
+      }
+      if (appStateSubscription) {
+        appStateSubscription.remove();
+      }
+    };
   }, []);
 
   if (!isReady) {
