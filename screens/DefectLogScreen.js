@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getAllDefects, getDefectsByServiceType, deleteDefect, getAllProjects, getDefectsByProject, getDefectsByProjectAndServiceType } from '../database/db';
 import { SERVICE_TYPES, SERVICE_TYPE_NAMES } from '../constants/defectData';
 import { generateDefectLogPDF, sharePDF } from '../utils/pdfGenerator';
-import { generateSiteMemo } from '../utils/siteMemoGenerator';
+import { composeSiteMemoEmail, generateSiteMemo } from '../utils/siteMemoGenerator';
 import { getCurrentProject } from '../utils/storage';
 import { deleteCentralDefect, isCentralSyncEnabled, syncWithCentral } from '../utils/centralSync';
 
@@ -229,28 +229,16 @@ export default function DefectLogScreen() {
       // Get project title
       const projectTitle = selectedProject === 'All' ? defectsToExport[0]?.projectTitle : selectedProject;
       
-      const pdfPath = await generateSiteMemo(defectsToExport, projectTitle, memoNumber);
+      const siteMemo = await generateSiteMemo(defectsToExport, projectTitle, memoNumber);
       
-      Alert.alert(
-        'Site Memo Generated',
-        'General Defects Site Memo has been generated. Would you like to share it?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Share',
-            onPress: async () => {
-              try {
-                await sharePDF(pdfPath);
-              } catch (error) {
-                Alert.alert('Error', 'Failed to share site memo');
-              }
-            },
-          },
-        ]
-      );
+      await composeSiteMemoEmail({
+        pdfPath: siteMemo.path,
+        memoNumber: siteMemo.memoNumber,
+        title: siteMemo.title,
+      });
     } catch (error) {
       console.error('Error generating site memo:', error);
-      Alert.alert('Error', 'Failed to generate site memo');
+      Alert.alert('Error', `Failed to prepare site memo email. ${error.message || ''}`);
     } finally {
       setExportingSiteMemo(false);
     }

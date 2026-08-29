@@ -1,6 +1,7 @@
 import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import * as MailComposer from 'expo-mail-composer';
 
 const escapeHtml = (value) => String(value ?? '')
   .replace(/&/g, '&amp;')
@@ -11,12 +12,26 @@ const escapeHtml = (value) => String(value ?? '')
 
 const formatDate = (date) => date.toLocaleDateString('en-GB');
 
-const buildMemoNumber = (siteMemoNumber) => {
+export const buildSiteMemoNumber = (siteMemoNumber) => {
   const trimmed = siteMemoNumber.trim();
   return trimmed.toUpperCase().startsWith('YTIL46/BSI/M/')
     ? trimmed
     : `YTIL46/BSI/M/${trimmed}`;
 };
+
+export const buildSiteMemoEmailTitle = (memoNumber) => `BS Site Memo ${memoNumber}`;
+
+export const buildSiteMemoEmailBody = (memoNumber) => `Dear Chevalier,
+
+
+
+Attached find the BS site memo (ref: ${memoNumber}) for your action.
+
+
+
+Regards,
+
+Leung Kit Nam`;
 
 const getImageBase64 = async (uri) => {
   try {
@@ -55,7 +70,8 @@ export const generateSiteMemo = async (defects, projectTitle, siteMemoNumber) =>
   const deadlineDate = new Date(currentDate);
   deadlineDate.setDate(deadlineDate.getDate() + 14);
   const deadlineStr = formatDate(deadlineDate);
-  const memoNumber = buildMemoNumber(siteMemoNumber);
+  const memoNumber = buildSiteMemoNumber(siteMemoNumber);
+  const title = buildSiteMemoEmailTitle(memoNumber);
 
   const uniqueTypes = [...new Set(defects.map(d => d.serviceType).filter(Boolean))];
   const tradeText = uniqueTypes.length === 1 ? uniqueTypes[0] : 'multiple trades';
@@ -337,11 +353,29 @@ export const generateSiteMemo = async (defects, projectTitle, siteMemoNumber) =>
       to: newPath,
     });
 
-    return newPath;
+    return {
+      path: newPath,
+      memoNumber,
+      title,
+    };
   } catch (error) {
     console.error('Error generating site memo PDF:', error);
     throw error;
   }
+};
+
+export const composeSiteMemoEmail = async ({ pdfPath, memoNumber, title }) => {
+  const isAvailable = await MailComposer.isAvailableAsync();
+  if (!isAvailable) {
+    throw new Error('Email composer is not available on this device');
+  }
+
+  await MailComposer.composeAsync({
+    recipients: ['leungkitnam@gmail.com'],
+    subject: title || buildSiteMemoEmailTitle(memoNumber),
+    body: buildSiteMemoEmailBody(memoNumber),
+    attachments: [pdfPath],
+  });
 };
 
 export const sharePDF = async (uri) => {
