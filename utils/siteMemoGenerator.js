@@ -21,6 +21,8 @@ export const buildSiteMemoNumber = (siteMemoNumber) => {
 
 export const buildSiteMemoEmailTitle = (memoNumber) => `BS Site Memo ${memoNumber}`;
 
+export const SITE_MEMO_EMAIL_RECIPIENT = 'leungkitnam@gmail.com';
+
 export const buildSiteMemoEmailBody = (memoNumber) => `Dear Chevalier,
 
 
@@ -370,8 +372,8 @@ export const composeSiteMemoEmail = async ({ pdfPath, memoNumber, title }) => {
     throw new Error('Email composer is not available on this device');
   }
 
-  await MailComposer.composeAsync({
-    recipients: ['leungkitnam@gmail.com'],
+  return MailComposer.composeAsync({
+    recipients: [SITE_MEMO_EMAIL_RECIPIENT],
     subject: title || buildSiteMemoEmailTitle(memoNumber),
     body: buildSiteMemoEmailBody(memoNumber),
     attachments: [pdfPath],

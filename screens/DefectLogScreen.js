@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getAllDefects, getDefectsByServiceType, deleteDefect, getAllProjects, getDefectsByProject, getDefectsByProjectAndServiceType } from '../database/db';
 import { SERVICE_TYPES, SERVICE_TYPE_NAMES } from '../constants/defectData';
 import { generateDefectLogPDF, sharePDF } from '../utils/pdfGenerator';
-import { composeSiteMemoEmail, generateSiteMemo } from '../utils/siteMemoGenerator';
+import { composeSiteMemoEmail, generateSiteMemo, SITE_MEMO_EMAIL_RECIPIENT } from '../utils/siteMemoGenerator';
 import { getCurrentProject } from '../utils/storage';
 import { deleteCentralDefect, isCentralSyncEnabled, syncWithCentral } from '../utils/centralSync';
 
@@ -231,11 +231,13 @@ export default function DefectLogScreen() {
       
       const siteMemo = await generateSiteMemo(defectsToExport, projectTitle, memoNumber);
       
-      await composeSiteMemoEmail({
+      const emailResult = await composeSiteMemoEmail({
         pdfPath: siteMemo.path,
         memoNumber: siteMemo.memoNumber,
         title: siteMemo.title,
       });
+      const statusAlert = getEmailStatusMessage(emailResult?.status);
+      Alert.alert(statusAlert.title, statusAlert.message);
     } catch (error) {
       console.error('Error generating site memo:', error);
       Alert.alert('Error', `Failed to prepare site memo email. ${error.message || ''}`);
@@ -615,6 +617,31 @@ const getServiceTypeColor = (serviceType) => {
     Bonding: '#7b1fa2',
   };
   return colors[serviceType] || '#666';
+};
+
+const getEmailStatusMessage = (status) => {
+  switch (status) {
+    case 'sent':
+      return {
+        title: 'Email Sent',
+        message: `The email app reported that the site memo email was sent to ${SITE_MEMO_EMAIL_RECIPIENT}. Please also check Gmail Sent Mail for final confirmation.`,
+      };
+    case 'saved':
+      return {
+        title: 'Email Saved',
+        message: 'The email was saved as a draft. It has not been sent yet.',
+      };
+    case 'cancelled':
+      return {
+        title: 'Email Cancelled',
+        message: 'The email was cancelled. It has not been sent.',
+      };
+    default:
+      return {
+        title: 'Email Status Needs Confirmation',
+        message: `The email app was opened for ${SITE_MEMO_EMAIL_RECIPIENT}, but the phone did not confirm whether Send was completed. Please check Gmail Sent Mail.`,
+      };
+  }
 };
 
 const styles = StyleSheet.create({
