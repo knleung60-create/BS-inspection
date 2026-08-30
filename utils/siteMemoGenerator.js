@@ -19,9 +19,53 @@ export const buildSiteMemoNumber = (siteMemoNumber) => {
     : `YTIL46/BSI/M/${trimmed}`;
 };
 
-export const buildSiteMemoEmailTitle = (memoNumber) => `BS Site Memo ${memoNumber}`;
+export const SITE_MEMO_EMAIL_RECIPIENTS = [
+  'cyrous_lam@chevalier-webmail.com',
+  'chan.sam@chevalier-webmail.com',
+  'lee.moos@chevalier-webmail.com',
+  'williamwl_wong@chevalier-webmail.com',
+  'tam.simon@chevalier-webmail.com',
+  'chow.pong@chevalier-webmail.com',
+  'wong.steve@chevalier-webmail.com',
+];
 
-export const SITE_MEMO_EMAIL_RECIPIENT = 'leungkitnam@gmail.com';
+export const SITE_MEMO_EMAIL_CC_RECIPIENTS = [
+  'jimmy.leung@yuexiuproperty.com',
+  'kentsang.yuexiu@gmail.com',
+  'lilianlam@yuexiuproperty.com',
+  'hoyiukai@yuexiuproperty.com',
+  'kelly.pan@yuexiuproperty.com',
+  'yoko.hon@yuexiuproperty.com',
+  'dennis.yung@yuexiuproperty.com',
+  'ice.li@yuexiuproperty.com',
+  'hkyautongproject@yuexiuproperty.com',
+  'ricky.pang@yuexiuproperty.com',
+  'calvinwu.yx@gmail.com',
+  'lilianlam.yx@gmail.com',
+  'hoyiukai.yx@gmail.com',
+  'kellypan.yx@gmail.com',
+  'yokohon.yx@gmail.com',
+  'dennisyung.yx@gmail.com',
+  'davidkwong.yx@gmail.com',
+  'icelicp.yx@gmail.com',
+  'ricky.tkpang@gmail.com',
+  'isaac.so.work@gmail.com',
+  '6119@p-t-group.com',
+  'kennethng@p-t-group.com',
+  'elsietsang@p-t-group.com',
+  'tomkwan@p-t-group.com',
+  'Martin.Wong@curriebrown.com',
+  'hk-500818@curriebrown.com',
+  'Renee.Cheng@aurecongroup.com',
+  'KenKC.Chan@aurecongroup.com',
+  'Lawrence.Chung@aurecongroup.com',
+  'mingfaiwong.yx@gmail.com',
+  'alantsangyuexiu@gmail.com',
+  'xuyuyu.yx@gmail.com',
+  'fungcheng.yx@gmail.com',
+];
+
+export const buildSiteMemoEmailTitle = (memoNumber, siteMemoTitle) => `${memoNumber} ${siteMemoTitle}`;
 
 export const buildSiteMemoEmailBody = (memoNumber) => `Dear Chevalier,
 
@@ -72,11 +116,11 @@ export const generateSiteMemo = async (defects, projectTitle, siteMemoNumber) =>
   const deadlineDate = new Date(currentDate);
   deadlineDate.setDate(deadlineDate.getDate() + 14);
   const deadlineStr = formatDate(deadlineDate);
-  const memoNumber = buildSiteMemoNumber(siteMemoNumber);
-  const title = buildSiteMemoEmailTitle(memoNumber);
-
   const uniqueTypes = [...new Set(defects.map(d => d.serviceType).filter(Boolean))];
   const tradeText = uniqueTypes.length === 1 ? uniqueTypes[0] : 'multiple trades';
+  const siteMemoTitle = `Request ${tradeText} defects rectification`;
+  const memoNumber = buildSiteMemoNumber(siteMemoNumber);
+  const title = buildSiteMemoEmailTitle(memoNumber, siteMemoTitle);
 
   const defectRows = defects.map((defect) => `
     <tr>
@@ -283,7 +327,7 @@ export const generateSiteMemo = async (defects, projectTitle, siteMemoNumber) =>
         <tr><td class="memo-label">Attention:</td><td>Mr. Cyrous Lam, Simon Tam, Steve Wong, Benny Chan</td></tr>
         <tr><td class="memo-label">From:</td><td>Mr. Leung Kit Nam</td></tr>
         <tr><td class="memo-label">Total Pages:</td><td>${escapeHtml(totalPagesText)}</td></tr>
-        <tr><td class="memo-label">Subject:</td><td><strong>Request ${escapeHtml(tradeText)} defects rectification</strong></td></tr>
+        <tr><td class="memo-label">Subject:</td><td><strong>${escapeHtml(siteMemoTitle)}</strong></td></tr>
       </table>
 
       <div class="rule"></div>
@@ -329,7 +373,7 @@ export const generateSiteMemo = async (defects, projectTitle, siteMemoNumber) =>
       <table class="cc-table">
         <tr>
           <td style="width: 18mm;"><strong>c.c</strong></td>
-          <td style="width: 25mm;">Vanke</td>
+          <td style="width: 25mm;">Charm Smart</td>
           <td>Mr. Jimmy Leung, Mr. Ken Tsang, Ms. Lilian Lam, Mr. Ricky Pang, Mr. Ho Yiu Kai, Ms. Kelly Pan, Mr. Dennis Yung</td>
         </tr>
         <tr><td></td><td>P&amp;T</td><td>Mr. Tom Kwan, Ms Elsie Tsang</td></tr>
@@ -373,8 +417,9 @@ export const composeSiteMemoEmail = async ({ pdfPath, memoNumber, title }) => {
   }
 
   return MailComposer.composeAsync({
-    recipients: [SITE_MEMO_EMAIL_RECIPIENT],
-    subject: title || buildSiteMemoEmailTitle(memoNumber),
+    recipients: SITE_MEMO_EMAIL_RECIPIENTS,
+    ccRecipients: SITE_MEMO_EMAIL_CC_RECIPIENTS,
+    subject: title,
     body: buildSiteMemoEmailBody(memoNumber),
     attachments: [pdfPath],
   });
