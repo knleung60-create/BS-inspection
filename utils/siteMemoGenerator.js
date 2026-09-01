@@ -130,7 +130,7 @@ export const generateSiteMemo = async (defects, projectTitle, siteMemoNumber) =>
     </tr>
   `).join('');
 
-  const photoRows = await Promise.all(defects.map(async (defect, index) => {
+  const photoItems = await Promise.all(defects.map(async (defect, index) => {
     let photoHtml = '<div class="no-photo">No photo provided</div>';
 
     if (defect.photoPath) {
@@ -140,27 +140,39 @@ export const generateSiteMemo = async (defects, projectTitle, siteMemoNumber) =>
       }
     }
 
-    return `
-      <section class="photo-record">
-        <div class="photo-meta">
-          <strong>${index + 1}. ${escapeHtml(defect.defectId || '')}</strong>
-          <span>${escapeHtml(defect.serviceType || '')}</span>
-        </div>
-        <div class="photo-details">
-          <div><strong>Defect Category:</strong> ${escapeHtml(defect.category || '')}</div>
-          <div><strong>Location:</strong> ${escapeHtml(defect.location || '')}</div>
-          ${defect.remarks ? `<div><strong>Remarks:</strong> ${escapeHtml(defect.remarks)}</div>` : ''}
-        </div>
-        <div class="photo-box">${photoHtml}</div>
-      </section>
-    `;
+    return {
+      photoHtml,
+      detailsHtml: `
+        <div class="defect-caption-line"><strong>${index + 1}. ${escapeHtml(defect.serviceType || '')}</strong></div>
+        <div class="defect-caption-line">${escapeHtml(defect.category || '')}</div>
+        <div class="defect-caption-line">${escapeHtml(defect.location || '')}</div>
+        ${defect.remarks ? `<div class="defect-caption-line defect-remarks">${escapeHtml(defect.remarks)}</div>` : ''}
+      `,
+    };
   }));
+
+  const photoTableRows = [];
+  for (let index = 0; index < photoItems.length; index += 2) {
+    const left = photoItems[index];
+    const right = photoItems[index + 1];
+
+    photoTableRows.push(`
+      <tr class="photo-row">
+        <td>${left.photoHtml}</td>
+        <td>${right ? right.photoHtml : ''}</td>
+      </tr>
+      <tr class="caption-row">
+        <td>${left.detailsHtml}</td>
+        <td>${right ? right.detailsHtml : ''}</td>
+      </tr>
+    `);
+  }
 
   const project = projectTitle && projectTitle !== 'All'
     ? projectTitle
     : 'Proposed Development at YTIL 46, Yau Tong, Kowloon - Main Contract';
 
-  const totalPagesText = `1+${Math.max(1, defects.length)}`;
+  const totalPagesText = `1+${Math.max(1, Math.ceil(defects.length / 2))}`;
 
   const html = `
     <!DOCTYPE html>
@@ -279,38 +291,60 @@ export const generateSiteMemo = async (defects, projectTitle, siteMemoNumber) =>
           margin-bottom: 4mm;
         }
 
-        .photo-record {
-          page-break-inside: avoid;
-          border: 1px solid #999;
-          margin-bottom: 7mm;
-          padding: 4mm;
+        .photo-grid {
+          border-collapse: collapse;
+          table-layout: fixed;
+          width: 100%;
         }
 
-        .photo-meta {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 3mm;
-        }
-
-        .photo-details {
-          margin-bottom: 3mm;
-        }
-
-        .photo-box {
+        .photo-grid td {
+          border: 1px solid #000;
+          padding: 2mm;
           text-align: center;
+          vertical-align: middle;
+          width: 50%;
+        }
+
+        .photo-row {
+          page-break-inside: avoid;
+        }
+
+        .photo-row td {
+          height: 76mm;
+        }
+
+        .caption-row {
+          page-break-after: auto;
+          page-break-inside: avoid;
+        }
+
+        .caption-row td {
+          font-size: 10pt;
+          line-height: 1.3;
+          min-height: 18mm;
+          text-align: left;
+          vertical-align: top;
+        }
+
+        .defect-caption-line {
+          margin-bottom: 1mm;
+        }
+
+        .defect-remarks {
+          color: #444;
+          font-style: italic;
         }
 
         .defect-photo {
           max-width: 100%;
-          max-height: 118mm;
+          max-height: 72mm;
           object-fit: contain;
-          border: 1px solid #ccc;
         }
 
         .no-photo {
           border: 1px dashed #aaa;
           color: #666;
-          padding: 18mm;
+          padding: 20mm 0;
           text-align: center;
         }
       </style>
@@ -383,7 +417,9 @@ export const generateSiteMemo = async (defects, projectTitle, siteMemoNumber) =>
 
       <div class="appendix">
         <div class="appendix-title">Defect List with Photos</div>
-        ${photoRows.join('')}
+        <table class="photo-grid">
+          ${photoTableRows.join('')}
+        </table>
       </div>
     </body>
     </html>
