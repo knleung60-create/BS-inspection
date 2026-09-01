@@ -69,15 +69,22 @@ export const buildSiteMemoEmailTitle = (memoNumber, siteMemoTitle) => `${memoNum
 
 export const buildSiteMemoEmailBody = (memoNumber) => `Dear Chevalier,
 
-
-
 Attached find the BS site memo (ref: ${memoNumber}) for your action.
 
-
+Please kindly acknowledge receipt.
 
 Regards,
 
 Leung Kit Nam`;
+
+const SUMMARY_ROWS_PER_MEMO_PAGE = 8;
+const DEFECTS_PER_ATTACHMENT_PAGE = 4;
+
+const estimateSiteMemoTotalPages = (defectCount) => {
+  const memoPages = Math.max(1, Math.ceil(defectCount / SUMMARY_ROWS_PER_MEMO_PAGE));
+  const attachmentPages = Math.max(1, Math.ceil(defectCount / DEFECTS_PER_ATTACHMENT_PAGE));
+  return memoPages + attachmentPages;
+};
 
 const getImageBase64 = async (uri) => {
   try {
@@ -151,20 +158,31 @@ export const generateSiteMemo = async (defects, projectTitle, siteMemoNumber) =>
     };
   }));
 
-  const photoTableRows = [];
-  for (let index = 0; index < photoItems.length; index += 2) {
-    const left = photoItems[index];
-    const right = photoItems[index + 1];
+  const photoTables = [];
+  for (let pageStartIndex = 0; pageStartIndex < photoItems.length; pageStartIndex += DEFECTS_PER_ATTACHMENT_PAGE) {
+    const pageItems = photoItems.slice(pageStartIndex, pageStartIndex + DEFECTS_PER_ATTACHMENT_PAGE);
+    const pageRows = [];
 
-    photoTableRows.push(`
-      <tr class="photo-row">
-        <td>${left.photoHtml}</td>
-        <td>${right ? right.photoHtml : ''}</td>
-      </tr>
-      <tr class="caption-row">
-        <td>${left.detailsHtml}</td>
-        <td>${right ? right.detailsHtml : ''}</td>
-      </tr>
+    for (let index = 0; index < pageItems.length; index += 2) {
+      const left = pageItems[index];
+      const right = pageItems[index + 1];
+
+      pageRows.push(`
+        <tr class="photo-row">
+          <td>${left.photoHtml}</td>
+          <td>${right ? right.photoHtml : ''}</td>
+        </tr>
+        <tr class="caption-row">
+          <td>${left.detailsHtml}</td>
+          <td>${right ? right.detailsHtml : ''}</td>
+        </tr>
+      `);
+    }
+
+    photoTables.push(`
+      <table class="photo-grid">
+        ${pageRows.join('')}
+      </table>
     `);
   }
 
@@ -172,7 +190,7 @@ export const generateSiteMemo = async (defects, projectTitle, siteMemoNumber) =>
     ? projectTitle
     : 'Proposed Development at YTIL 46, Yau Tong, Kowloon - Main Contract';
 
-  const totalPagesText = `1+${Math.max(1, Math.ceil(defects.length / 2))}`;
+  const totalPagesText = String(estimateSiteMemoTotalPages(defects.length));
 
   const html = `
     <!DOCTYPE html>
@@ -293,8 +311,14 @@ export const generateSiteMemo = async (defects, projectTitle, siteMemoNumber) =>
 
         .photo-grid {
           border-collapse: collapse;
+          margin-bottom: 0;
+          page-break-after: always;
           table-layout: fixed;
           width: 100%;
+        }
+
+        .photo-grid:last-child {
+          page-break-after: auto;
         }
 
         .photo-grid td {
@@ -417,9 +441,7 @@ export const generateSiteMemo = async (defects, projectTitle, siteMemoNumber) =>
 
       <div class="appendix">
         <div class="appendix-title">Defect List with Photos</div>
-        <table class="photo-grid">
-          ${photoTableRows.join('')}
-        </table>
+        ${photoTables.join('')}
       </div>
     </body>
     </html>
