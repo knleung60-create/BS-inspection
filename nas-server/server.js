@@ -175,6 +175,7 @@ const normalizeDefect = (metadata, req, existingDefect = null, uploadedFile = nu
     createdAt: metadata.createdAt,
     updatedAt: metadata.updatedAt || new Date().toISOString(),
     createdBy: metadata.createdBy || '',
+    siteMemoNumbers: metadata.siteMemoNumbers || '',
     photoFileName,
     photoUrl,
   };

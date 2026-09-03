@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Image, Alert, ActivityIndicator } from 'react-native';
 import { Button, Card, Chip, Dialog, Divider, IconButton, Menu, Portal, Searchbar, Text, TextInput, Title } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
-import { getAllDefects, getDefectsByServiceType, deleteDefect, getAllProjects, getDefectsByProject, getDefectsByProjectAndServiceType } from '../database/db';
+import { addSiteMemoNumberToDefects, getAllDefects, getDefectsByServiceType, deleteDefect, getAllProjects, getDefectsByProject, getDefectsByProjectAndServiceType } from '../database/db';
 import { SERVICE_TYPES, SERVICE_TYPE_NAMES } from '../constants/defectData';
 import { generateDefectLogPDF, sharePDF } from '../utils/pdfGenerator';
 import { composeSiteMemoEmail, generateSiteMemo, SITE_MEMO_EMAIL_RECIPIENTS } from '../utils/siteMemoGenerator';
@@ -131,15 +131,26 @@ export default function DefectLogScreen() {
 
     const lowercaseQuery = query.toLowerCase().trim();
     const searched = defectsToSearch.filter(defect => {
-      const location = defect.location?.toLowerCase() || '';
-      const defectId = defect.defectId?.toLowerCase() || '';
-      const category = defect.category?.toLowerCase() || '';
-      const remarks = defect.remarks?.toLowerCase() || '';
+      const serviceTypeName = SERVICE_TYPE_NAMES[defect.serviceType] || '';
+      const createdDate = defect.createdAt ? formatDate(defect.createdAt) : '';
+      const searchableText = [
+        defect.defectId,
+        defect.projectTitle,
+        defect.serviceType,
+        serviceTypeName,
+        defect.category,
+        defect.location,
+        defect.remarks,
+        defect.siteMemoNumbers,
+        defect.createdBy,
+        defect.syncStatus,
+        createdDate,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
       
-      return location.includes(lowercaseQuery) ||
-             defectId.includes(lowercaseQuery) ||
-             category.includes(lowercaseQuery) ||
-             remarks.includes(lowercaseQuery);
+      return searchableText.includes(lowercaseQuery);
     });
     
     setDisplayedDefects(searched);
@@ -230,6 +241,35 @@ export default function DefectLogScreen() {
       const projectTitle = selectedProject === 'All' ? defectsToExport[0]?.projectTitle : selectedProject;
       
       const siteMemo = await generateSiteMemo(defectsToExport, projectTitle, memoNumber);
+      await addSiteMemoNumberToDefects(
+        defectsToExport.map((defect) => defect.id),
+        siteMemo.memoNumber
+      );
+      const memoTaggedDefectIds = new Set(defectsToExport.map((defect) => defect.id));
+      const tagDefectsWithMemoNumber = (records) => records.map((defect) => (
+        memoTaggedDefectIds.has(defect.id)
+          ? {
+              ...defect,
+              siteMemoNumbers: appendMemoNumber(defect.siteMemoNumbers, siteMemo.memoNumber),
+              syncStatus: 'pending',
+            }
+          : defect
+      ));
+      const nextDefects = tagDefectsWithMemoNumber(defects);
+      const nextFilteredDefects = tagDefectsWithMemoNumber(filteredDefects);
+      setDefects(nextDefects);
+      setFilteredDefects(nextFilteredDefects);
+      applySearch(nextFilteredDefects, searchQuery);
+
+      if (isCentralSyncEnabled()) {
+        try {
+          await syncWithCentral();
+          setSyncMessage('Site memo number synced to central storage.');
+        } catch (syncError) {
+          console.error('Failed to sync site memo number to central storage:', syncError);
+          setSyncMessage('Site memo number saved on this device. Sync will retry later.');
+        }
+      }
       
       const emailResult = await composeSiteMemoEmail({
         pdfPath: siteMemo.path,
@@ -479,7 +519,7 @@ export default function DefectLogScreen() {
       )}
       <View style={styles.searchContainer}>
         <Searchbar
-          placeholder="Search by location, ID, category..."
+          placeholder="Search by trade, memo no, location, ID, category..."
           onChangeText={handleSearchChange}
           value={searchQuery}
           style={styles.searchBar}
@@ -581,6 +621,13 @@ export default function DefectLogScreen() {
                   </View>
                 )}
 
+                {!!defect.siteMemoNumbers && (
+                  <View style={styles.infoRow}>
+                    <Text style={styles.label}>Site Memo:</Text>
+                    <Text style={styles.value}>{defect.siteMemoNumbers}</Text>
+                  </View>
+                )}
+
                 <View style={styles.infoRow}>
                   <Text style={styles.label}>Date:</Text>
                   <Text style={styles.value}>{formatDate(defect.createdAt)}</Text>
@@ -617,6 +664,24 @@ const getServiceTypeColor = (serviceType) => {
     Bonding: '#7b1fa2',
   };
   return colors[serviceType] || '#666';
+};
+
+const appendMemoNumber = (siteMemoNumbers, memoNumber) => {
+  const cleanMemoNumber = String(memoNumber || '').trim();
+  if (!cleanMemoNumber) {
+    return siteMemoNumbers || '';
+  }
+
+  const memoNumbers = String(siteMemoNumbers || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  if (!memoNumbers.includes(cleanMemoNumber)) {
+    memoNumbers.push(cleanMemoNumber);
+  }
+
+  return memoNumbers.join(', ');
 };
 
 const getEmailStatusMessage = (status) => {

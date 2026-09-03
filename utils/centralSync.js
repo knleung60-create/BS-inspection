@@ -60,6 +60,7 @@ export const pushDefectToCentral = async (defect) => {
     updatedAt: defect.updatedAt || defect.createdAt,
     createdBy: defect.createdBy || '',
     remotePhotoUrl: defect.remotePhotoUrl || '',
+    siteMemoNumbers: defect.siteMemoNumbers || '',
   };
 
   formData.append('metadata', JSON.stringify(metadata));

@@ -9,6 +9,7 @@ const SYNC_COLUMNS = [
   { name: 'syncError', definition: 'TEXT' },
   { name: 'syncedAt', definition: 'TEXT' },
   { name: 'remotePhotoUrl', definition: 'TEXT' },
+  { name: 'siteMemoNumbers', definition: 'TEXT' },
 ];
 
 const ensureSyncColumns = async () => {
@@ -90,6 +91,7 @@ export const addDefect = async (defectData) => {
       syncStatus,
       syncedAt,
       remotePhotoUrl,
+      siteMemoNumbers,
     } = defectData;
     const now = new Date().toISOString();
     
@@ -110,8 +112,9 @@ export const addDefect = async (defectData) => {
         syncStatus,
         syncError,
         syncedAt,
-        remotePhotoUrl
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        remotePhotoUrl,
+        siteMemoNumbers
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         toDbText(defectId),
         toDbText(projectTitle),
@@ -127,6 +130,7 @@ export const addDefect = async (defectData) => {
         '',
         toDbText(syncedAt),
         toDbText(remotePhotoUrl),
+        toDbText(siteMemoNumbers),
       ]
     );
     
@@ -241,8 +245,9 @@ export const upsertCentralDefects = async (centralDefects = []) => {
           syncStatus,
           syncError,
           syncedAt,
-          remotePhotoUrl
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', NULL, ?, ?)
+          remotePhotoUrl,
+          siteMemoNumbers
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', NULL, ?, ?, ?)
         ON CONFLICT(defectId) DO UPDATE SET
           projectTitle = excluded.projectTitle,
           serviceType = excluded.serviceType,
@@ -261,7 +266,8 @@ export const upsertCentralDefects = async (centralDefects = []) => {
           syncStatus = 'synced',
           syncError = NULL,
           syncedAt = excluded.syncedAt,
-          remotePhotoUrl = excluded.remotePhotoUrl
+          remotePhotoUrl = excluded.remotePhotoUrl,
+          siteMemoNumbers = excluded.siteMemoNumbers
         WHERE defects.updatedAt IS NULL
            OR excluded.updatedAt >= defects.updatedAt`,
         [
@@ -277,6 +283,7 @@ export const upsertCentralDefects = async (centralDefects = []) => {
           toDbText(defect.createdBy),
           toDbText(syncedAt),
           remotePhotoUrl,
+          toDbText(defect.siteMemoNumbers),
         ]
       );
     }
@@ -285,6 +292,52 @@ export const upsertCentralDefects = async (centralDefects = []) => {
   } catch (error) {
     console.error('Error upserting central defects:', error);
     return 0;
+  }
+};
+
+export const addSiteMemoNumberToDefects = async (defectIds = [], memoNumber) => {
+  const cleanMemoNumber = toDbText(memoNumber).trim();
+  const cleanIds = defectIds.filter((id) => id !== null && id !== undefined);
+
+  if (!cleanIds.length || !cleanMemoNumber) {
+    return 0;
+  }
+
+  try {
+    const database = await getDatabase();
+    const now = new Date().toISOString();
+    let updated = 0;
+
+    for (const id of cleanIds) {
+      const row = await database.getFirstAsync(
+        'SELECT siteMemoNumbers FROM defects WHERE id = ?',
+        [id]
+      );
+      const memoNumbers = toDbText(row?.siteMemoNumbers)
+        .split(',')
+        .map((value) => value.trim())
+        .filter(Boolean);
+
+      if (!memoNumbers.includes(cleanMemoNumber)) {
+        memoNumbers.push(cleanMemoNumber);
+      }
+
+      await database.runAsync(
+        `UPDATE defects
+         SET siteMemoNumbers = ?,
+             updatedAt = ?,
+             syncStatus = 'pending',
+             syncError = NULL
+         WHERE id = ?`,
+        [memoNumbers.join(', '), now, id]
+      );
+      updated += 1;
+    }
+
+    return updated;
+  } catch (error) {
+    console.error('Error adding site memo number to defects:', error);
+    throw error;
   }
 };
 
