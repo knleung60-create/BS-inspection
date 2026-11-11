@@ -19,6 +19,8 @@ export const buildSiteMemoNumber = (siteMemoNumber) => {
     : `YTIL46/BSI/M/${trimmed}`;
 };
 
+// Verified 2026-11-09 against namleung.yx@gmail.com Sent Mail:
+// YTIL-46-BSI-M-025 (2026-10-22), with the same distribution on M-023/M-022.
 export const SITE_MEMO_EMAIL_RECIPIENTS = [
   'cyrous_lam@chevalier-webmail.com',
   'chan.sam@chevalier-webmail.com',
@@ -29,6 +31,9 @@ export const SITE_MEMO_EMAIL_RECIPIENTS = [
   'wong.steve@chevalier-webmail.com',
 ];
 
+// Exclude final delivery failures confirmed on 2026-10-23/25:
+// kevin.li@curriebrown.com, erin.chan@curriebrown.com, alantsangyuexiu@mgail.com.
+// The gmail.com address for Alan is supported by Sent Mail dated 2026-10-09.
 export const SITE_MEMO_EMAIL_CC_RECIPIENTS = [
   'jimmy.leung@yuexiuproperty.com',
   'kentsang.yuexiu@gmail.com',
@@ -39,12 +44,12 @@ export const SITE_MEMO_EMAIL_CC_RECIPIENTS = [
   'dennis.yung@yuexiuproperty.com',
   'ice.li@yuexiuproperty.com',
   'hkyautongproject@yuexiuproperty.com',
-  'ricky.pang@yuexiuproperty.com',
   'calvinwu.yx@gmail.com',
   'lilianlam.yx@gmail.com',
   'hoyiukai.yx@gmail.com',
   'kellypan.yx@gmail.com',
   'yokohon.yx@gmail.com',
+  'ricky.pang@yuexiuproperty.com',
   'dennisyung.yx@gmail.com',
   'davidkwong.yx@gmail.com',
   'icelicp.yx@gmail.com',
