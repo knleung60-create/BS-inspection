@@ -2,6 +2,57 @@ import * as Print from 'expo-print';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
+// Verified 2026-11-09 against namleung.yx@gmail.com Sent Mail:
+// YTIL-46-BSI-M-025 (2026-10-22), with the same distribution on M-023/M-022.
+export const SITE_MEMO_EMAIL_RECIPIENTS = [
+  'cyrous_lam@chevalier-webmail.com',
+  'chan.sam@chevalier-webmail.com',
+  'lee.moos@chevalier-webmail.com',
+  'williamwl_wong@chevalier-webmail.com',
+  'tam.simon@chevalier-webmail.com',
+  'chow.pong@chevalier-webmail.com',
+  'wong.steve@chevalier-webmail.com',
+];
+
+// Exclude final delivery failures confirmed on 2026-10-23/25:
+// kevin.li@curriebrown.com, erin.chan@curriebrown.com, alantsangyuexiu@mgail.com.
+// The gmail.com address for Alan is supported by Sent Mail dated 2026-10-09.
+export const SITE_MEMO_EMAIL_CC_RECIPIENTS = [
+  'jimmy.leung@yuexiuproperty.com',
+  'kentsang.yuexiu@gmail.com',
+  'lilianlam@yuexiuproperty.com',
+  'hoyiukai@yuexiuproperty.com',
+  'kelly.pan@yuexiuproperty.com',
+  'yoko.hon@yuexiuproperty.com',
+  'dennis.yung@yuexiuproperty.com',
+  'ice.li@yuexiuproperty.com',
+  'hkyautongproject@yuexiuproperty.com',
+  'calvinwu.yx@gmail.com',
+  'lilianlam.yx@gmail.com',
+  'hoyiukai.yx@gmail.com',
+  'kellypan.yx@gmail.com',
+  'yokohon.yx@gmail.com',
+  'ricky.pang@yuexiuproperty.com',
+  'dennisyung.yx@gmail.com',
+  'davidkwong.yx@gmail.com',
+  'icelicp.yx@gmail.com',
+  'ricky.tkpang@gmail.com',
+  'isaac.so.work@gmail.com',
+  '6119@p-t-group.com',
+  'kennethng@p-t-group.com',
+  'elsietsang@p-t-group.com',
+  'tomkwan@p-t-group.com',
+  'Martin.Wong@curriebrown.com',
+  'hk-500818@curriebrown.com',
+  'Renee.Cheng@aurecongroup.com',
+  'KenKC.Chan@aurecongroup.com',
+  'Lawrence.Chung@aurecongroup.com',
+  'mingfaiwong.yx@gmail.com',
+  'alantsangyuexiu@gmail.com',
+  'xuyuyu.yx@gmail.com',
+  'fungcheng.yx@gmail.com',
+];
+
 // Generate Site Memo PDF from selected defects
 export const generateSiteMemo = async (defects, projectTitle) => {
   if (!defects || defects.length === 0) {
